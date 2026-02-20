@@ -1,0 +1,6 @@
+name = "github-webhook-relay"
+main = "src/index.js"
+compatibility_date = "2026-02-20"
+
+[vars]
+GITHUB_REPO = "kai-loacher-org/.github"
