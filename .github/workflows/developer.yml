@@ -30,10 +30,10 @@ on:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: "OAuth token for Claude Code CLI"
-        required: true
+        required: false
       WORKFLOW_PAT:
         description: "PAT for cross-repo dispatch and project updates"
-        required: true
+        required: false
 
 jobs:
   develop:
