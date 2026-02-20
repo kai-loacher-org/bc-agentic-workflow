@@ -239,7 +239,7 @@ jobs:
         if: steps.claude.outputs.claude_failed != 'true' && steps.push.outputs.has_changes != 'false'
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "${{ steps.existing.outputs.pr_number }}" ]; then
             # PR already exists (re-work cycle) — just get the number
