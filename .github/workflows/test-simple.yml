@@ -1,0 +1,16 @@
+name: Test Simple
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Test message"
+        type: string
+        default: "hello"
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - name: Print message
+        run: echo "Message is ${{ inputs.message }}"
