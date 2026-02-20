@@ -28,12 +28,6 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: write
-
 jobs:
   develop:
     runs-on: agentic-developer
