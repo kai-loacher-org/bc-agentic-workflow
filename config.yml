@@ -1,0 +1,18 @@
+# Organization-wide defaults for the agentic workflow.
+# These values are used as defaults in reusable workflow inputs.
+# Target repos can override them in their wrapper workflows.
+
+max_review_cycles: 3
+branch_pattern: "issue/{number}-{slug}"
+pr_auto_close_issue: true
+
+project:
+  # Replace with your GitHub org name
+  org: "REPLACE_WITH_ORG"
+  # Replace with your GitHub Project number (visible in project URL)
+  number: 0
+
+runners:
+  orchestrator: "self-hosted"
+  developer: "agentic-developer"
+  reviewer: "agentic-reviewer"
