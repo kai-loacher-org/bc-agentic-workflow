@@ -6,11 +6,10 @@ max_review_cycles: 3
 branch_pattern: "issue/{number}-{slug}"
 pr_auto_close_issue: true
 
-project:
-  # Replace with your GitHub org name
-  org: "kai-loacher-org"
-  # Replace with your GitHub Project number (visible in project URL)
-  number: 3
+# Note: Project board IDs are passed automatically through the
+# projects_v2_item webhook event. No per-repo project config needed.
+# Each repo can use a different project board — the system handles
+# it automatically via the event payload.
 
 runners:
   orchestrator: "self-hosted"
