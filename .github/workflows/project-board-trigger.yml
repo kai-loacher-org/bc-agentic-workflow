@@ -1,0 +1,22 @@
+name: Project Board Trigger
+
+on:
+  projects_v2_item:
+    types: [edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  orchestrate:
+    # Only trigger when a single-select field (e.g. Status) changes
+    if: github.event.changes.field_value.field_type == 'single_select'
+    uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/orchestrator.yml@main
+    with:
+      item_node_id: ${{ github.event.projects_v2_item.node_id }}
+      content_node_id: ${{ github.event.projects_v2_item.content_node_id }}
+      project_node_id: ${{ github.event.projects_v2_item.project_node_id }}
+    secrets: inherit
