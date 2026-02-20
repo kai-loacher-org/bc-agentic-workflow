@@ -81,3 +81,10 @@ Was an dem Tag gemacht wurde — erledigte Aufgaben, Änderungen, Entscheidungen
 Was wir uns für das Projekt merken sollten — offene Punkte, Erkenntnisse, Blocker, nächste Schritte
 
 Regel für MEMORY.md: Zu Beginn jeder neuen Sitzung müssen die letzten drei Log-Dateien aus logs/ eingelesen werden, um den aktuellen Projektstand und Kontext zu kennen. Dieser Hinweis ist fest in der MEMORY.md verankert.
+
+## Umsetzung mit Claude Code
+
+Die KI-Agenten (Developer, Reviewer) sollen mit **Claude Code** umgesetzt werden. Claude Code ist das offizielle CLI-Tool von Anthropic und eignet sich ideal als Grundlage für die Agenten, da es bereits Git-Operationen, Datei-Bearbeitung und Code-Analyse nativ unterstützt.
+
+Zur Recherche der Claude Code Dokumentation steht ein eigener Skill bereit:
+`.claude/skills/claude-code-docs/SKILL.md` — Dieser Skill durchsucht die Claude Code Dokumentation und liefert relevante Informationen zu Features, Konfiguration, SDK-Nutzung und Best Practices.
