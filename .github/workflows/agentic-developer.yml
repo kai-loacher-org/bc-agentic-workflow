@@ -33,3 +33,8 @@ jobs:
     uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/developer-test.yml@main
     with:
       issue_number: ${{ inputs.issue_number }}
+      review_cycle: ${{ inputs.review_cycle }}
+      max_review_cycles: ${{ inputs.max_review_cycles }}
+      project_node_id: ${{ inputs.project_node_id }}
+      item_node_id: ${{ inputs.item_node_id }}
+    secrets: inherit
