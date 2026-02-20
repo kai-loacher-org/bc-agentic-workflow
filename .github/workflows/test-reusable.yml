@@ -1,0 +1,29 @@
+name: Test Reusable
+
+on:
+  workflow_call:
+    inputs:
+      test_input:
+        description: "Test input"
+        type: string
+        required: true
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      WORKFLOW_PAT:
+        required: true
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - name: Print input
+        run: echo "Input is ${{ inputs.test_input }}"
+
+      - name: Check secrets exist
+        run: |
+          if [ -n "$OAUTH" ]; then echo "CLAUDE_CODE_OAUTH_TOKEN: set"; else echo "CLAUDE_CODE_OAUTH_TOKEN: MISSING"; fi
+          if [ -n "$PAT" ]; then echo "WORKFLOW_PAT: set"; else echo "WORKFLOW_PAT: MISSING"; fi
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          PAT: ${{ secrets.WORKFLOW_PAT }}
