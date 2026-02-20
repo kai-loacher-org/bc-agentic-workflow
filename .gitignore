@@ -15,3 +15,6 @@ node_modules/
 .vscode/
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Temp files from prompt assembly
+/tmp/
