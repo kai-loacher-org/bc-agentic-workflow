@@ -4,24 +4,24 @@
 
 ### Secrets
 
-- [ ] Run `claude setup-token` locally and copy the token
-- [ ] Add `CLAUDE_CODE_OAUTH_TOKEN` as org secret in `kai-loacher-org` (Settings > Secrets > Actions)
-- [ ] Create a fine-grained PAT with scopes: `actions:write`, `issues:write`, `contents:write`, `pull-requests:write`
-- [ ] Add `WORKFLOW_PAT` as org secret in `kai-loacher-org`
+- [x] Run `claude setup-token` locally and copy the token
+- [x] Add `CLAUDE_CODE_OAUTH_TOKEN` as org secret in `kai-loacher-org` (Settings > Secrets > Actions)
+- [x] Create a fine-grained PAT with scopes: `actions:write`, `issues:write`, `contents:write`, `pull-requests:write`
+- [x] Add `WORKFLOW_PAT` as org secret in `kai-loacher-org`
 
 ### Self-hosted runners
 
-- [ ] Runner `runner-developer-1` is online with label `agentic-developer`
-- [ ] Runner `runner-developer-2` is online with label `agentic-developer`
-- [ ] Runner `runner-reviewer-1` is online with label `agentic-reviewer`
-- [ ] At least one runner has the `self-hosted` label (for orchestrator)
-- [ ] Claude Code CLI is installed on all runners (`claude --version`)
-- [ ] Each runner has `~/.claude.json` with `{"hasCompletedOnboarding": true}`
+- [x] Runner `runner-developer-1` is online with label `agentic-developer`
+- [x] Runner `runner-developer-2` is online with label `agentic-developer`
+- [x] Runner `runner-reviewer-1` is online with label `agentic-reviewer`
+- [x] At least one runner has the `self-hosted` label (for orchestrator)
+- [x] Claude Code CLI is installed on all runners (`claude --version`)
+- [x] Each runner has `~/.claude.json` with `{"hasCompletedOnboarding": true}`
 
 ### Config
 
-- [ ] Update `config.yml`: set `project.org` to `kai-loacher-org`
-- [ ] Update `config.yml`: set `project.number` to your GitHub Project number
+- [x] Update `config.yml`: set `project.org` to `kai-loacher-org`
+- [x] Update `config.yml`: set `project.number` to your GitHub Project number
 
 ---
 

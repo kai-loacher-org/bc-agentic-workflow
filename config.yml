@@ -8,9 +8,9 @@ pr_auto_close_issue: true
 
 project:
   # Replace with your GitHub org name
-  org: "REPLACE_WITH_ORG"
+  org: "kai-loacher-org"
   # Replace with your GitHub Project number (visible in project URL)
-  number: 0
+  number: 3
 
 runners:
   orchestrator: "self-hosted"
