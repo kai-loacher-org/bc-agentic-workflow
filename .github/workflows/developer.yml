@@ -252,18 +252,14 @@ jobs:
             echo "::notice::Updated existing PR #${{ steps.existing.outputs.pr_number }}"
           else
             # Create new PR
+            PR_BODY="Closes #${{ inputs.issue_number }}"
+            PR_BODY+=$'\n\n## Summary\n\n'
+            PR_BODY+="Automated implementation by Developer Agent (cycle ${{ inputs.review_cycle }})."
+            PR_BODY+=$'\n\nSee issue #${{ inputs.issue_number }} for requirements.'
+
             PR_URL=$(gh pr create \
               --title "Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}" \
-              --body "$(cat <<EOF
-Closes #${{ inputs.issue_number }}
-
-## Summary
-
-Automated implementation by Developer Agent (cycle ${{ inputs.review_cycle }}).
-
-See issue #${{ inputs.issue_number }} for requirements.
-EOF
-)" \
+              --body "$PR_BODY" \
               --head "${{ steps.issue.outputs.branch }}" \
               --base main)
 
