@@ -29,9 +29,9 @@ on:
         default: ""
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
-        required: true
+        required: false
       WORKFLOW_PAT:
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -44,5 +44,10 @@ jobs:
     runs-on: agentic-developer
     timeout-minutes: 60
     steps:
-      - name: Test step
-        run: echo "Developer test works for issue ${{ inputs.issue_number }}"
+      - name: Check secrets
+        run: |
+          if [ -n "$OAUTH" ]; then echo "CLAUDE_CODE_OAUTH_TOKEN: set"; else echo "CLAUDE_CODE_OAUTH_TOKEN: MISSING"; fi
+          if [ -n "$PAT" ]; then echo "WORKFLOW_PAT: set"; else echo "WORKFLOW_PAT: MISSING"; fi
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          PAT: ${{ secrets.WORKFLOW_PAT }}
