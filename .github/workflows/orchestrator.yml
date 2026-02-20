@@ -1,0 +1,208 @@
+name: Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      item_node_id:
+        description: "Project item node ID (from projects_v2_item event)"
+        type: string
+        required: true
+      content_node_id:
+        description: "Content node ID - the issue node ID"
+        type: string
+        required: true
+      project_node_id:
+        description: "Project node ID"
+        type: string
+        required: true
+    secrets:
+      WORKFLOW_PAT:
+        description: "PAT with actions:write for cross-repo dispatch"
+        required: true
+
+  # Manual trigger for testing without the project board
+  workflow_dispatch:
+    inputs:
+      issue_repo:
+        description: "Target repository (owner/repo)"
+        type: string
+        required: true
+      issue_number:
+        description: "Issue number to process"
+        type: string
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+  actions: write
+
+jobs:
+  orchestrate:
+    runs-on: self-hosted
+    steps:
+      - name: Determine trigger source
+        id: trigger
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "source=manual" >> "$GITHUB_OUTPUT"
+            echo "issue_repo=${{ inputs.issue_repo }}" >> "$GITHUB_OUTPUT"
+            echo "issue_number=${{ inputs.issue_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=project" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get issue details from project item
+        if: steps.trigger.outputs.source == 'project'
+        id: issue_from_project
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Verify the item is in "Ready" status
+          CURRENT_STATUS=$(gh api graphql -f query='
+            query($itemId: ID!) {
+              node(id: $itemId) {
+                ... on ProjectV2Item {
+                  fieldValueByName(name: "Status") {
+                    ... on ProjectV2ItemFieldSingleSelectValue {
+                      name
+                    }
+                  }
+                }
+              }
+            }' -f itemId="${{ inputs.item_node_id }}" \
+            --jq '.data.node.fieldValueByName.name')
+
+          if [ "$CURRENT_STATUS" != "Ready" ]; then
+            echo "::notice::Item status is '$CURRENT_STATUS', not 'Ready'. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get issue number and repository from content node
+          ISSUE_DATA=$(gh api graphql -f query='
+            query($nodeId: ID!) {
+              node(id: $nodeId) {
+                ... on Issue {
+                  number
+                  title
+                  repository {
+                    nameWithOwner
+                  }
+                }
+              }
+            }' -f nodeId="${{ inputs.content_node_id }}" \
+            --jq '.data.node')
+
+          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
+          ISSUE_REPO=$(echo "$ISSUE_DATA" | jq -r '.repository.nameWithOwner')
+
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "issue_repo=$ISSUE_REPO" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Set issue variables
+        if: steps.issue_from_project.outputs.skip != 'true'
+        id: issue
+        run: |
+          if [ "${{ steps.trigger.outputs.source }}" = "manual" ]; then
+            echo "number=${{ steps.trigger.outputs.issue_number }}" >> "$GITHUB_OUTPUT"
+            echo "repo=${{ steps.trigger.outputs.issue_repo }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ steps.issue_from_project.outputs.issue_number }}" >> "$GITHUB_OUTPUT"
+            echo "repo=${{ steps.issue_from_project.outputs.issue_repo }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for agent-failed label
+        if: steps.issue_from_project.outputs.skip != 'true'
+        id: check_failed
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          LABELS=$(gh issue view "${{ steps.issue.outputs.number }}" \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            --json labels --jq '.labels[].name')
+          if echo "$LABELS" | grep -q "agent-failed"; then
+            echo "::warning::Issue has 'agent-failed' label. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add review-cycle label
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Remove any existing review-cycle labels
+          EXISTING=$(gh issue view "${{ steps.issue.outputs.number }}" \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            --json labels --jq '.labels[].name' | grep "^review-cycle:" || true)
+          for label in $EXISTING; do
+            gh issue edit "${{ steps.issue.outputs.number }}" \
+              --repo "${{ steps.issue.outputs.repo }}" \
+              --remove-label "$label" 2>/dev/null || true
+          done
+
+          # Add review-cycle:0 (create label if needed)
+          gh label create "review-cycle:0" --repo "${{ steps.issue.outputs.repo }}" \
+            --color "0E8A16" --description "Review cycle counter" 2>/dev/null || true
+          gh issue edit "${{ steps.issue.outputs.number }}" \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            --add-label "review-cycle:0"
+
+      - name: Update project status to In Progress
+        if: steps.trigger.outputs.source == 'project' && steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Get Status field ID and "In Progress" option ID
+          FIELD_DATA=$(gh api graphql -f query='
+            query($projectId: ID!) {
+              node(id: $projectId) {
+                ... on ProjectV2 {
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options { id name }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f projectId="${{ inputs.project_node_id }}" \
+            --jq '.data.node.fields.nodes[] | select(.name == "Status")')
+
+          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')
+
+          # Update status
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) {
+                projectV2Item { id }
+              }
+            }' \
+            -f projectId="${{ inputs.project_node_id }}" \
+            -f itemId="${{ inputs.item_node_id }}" \
+            -f fieldId="$FIELD_ID" \
+            -f optionId="$OPTION_ID"
+
+      - name: Dispatch developer workflow
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        run: |
+          gh workflow run agentic-developer.yml \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            -f issue_number="${{ steps.issue.outputs.number }}" \
+            -f review_cycle="0" \
+            -f project_node_id="${{ inputs.project_node_id || '' }}" \
+            -f item_node_id="${{ inputs.item_node_id || '' }}"
