@@ -1,0 +1,48 @@
+# Copy this file to your repo at: .github/workflows/agentic-reviewer.yml
+# Replace OWNER/bc-agentic-workflow with your org's repo path.
+
+name: Agentic Reviewer
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number being reviewed"
+        type: string
+        required: true
+      pr_number:
+        description: "PR number to review"
+        type: string
+        required: true
+      review_cycle:
+        description: "Current review cycle"
+        type: string
+        required: true
+        default: "0"
+      max_review_cycles:
+        description: "Max review cycles"
+        type: string
+        required: false
+        default: "3"
+      project_node_id:
+        description: "Project node ID"
+        type: string
+        required: false
+        default: ""
+      item_node_id:
+        description: "Project item node ID"
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  review:
+    uses: OWNER/bc-agentic-workflow/.github/workflows/reviewer.yml@main
+    with:
+      issue_number: ${{ inputs.issue_number }}
+      pr_number: ${{ inputs.pr_number }}
+      review_cycle: ${{ inputs.review_cycle }}
+      max_review_cycles: ${{ inputs.max_review_cycles }}
+      project_node_id: ${{ inputs.project_node_id }}
+      item_node_id: ${{ inputs.item_node_id }}
+    secrets: inherit
