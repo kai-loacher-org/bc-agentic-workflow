@@ -1,0 +1,324 @@
+name: Developer Agent
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: "Issue number to implement"
+        type: string
+        required: true
+      review_cycle:
+        description: "Current review cycle (0 = first attempt)"
+        type: string
+        required: true
+        default: "0"
+      max_review_cycles:
+        description: "Max review cycles before escalation"
+        type: string
+        required: false
+        default: "3"
+      project_node_id:
+        description: "Project node ID for status updates"
+        type: string
+        required: false
+        default: ""
+      item_node_id:
+        description: "Project item node ID for status updates"
+        type: string
+        required: false
+        default: ""
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "OAuth token for Claude Code CLI"
+        required: true
+      WORKFLOW_PAT:
+        description: "PAT for cross-repo dispatch and project updates"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  develop:
+    runs-on: agentic-developer
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch issue context
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_JSON=$(gh issue view "${{ inputs.issue_number }}" --json title,body,comments)
+
+          TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+          BODY=$(echo "$ISSUE_JSON" | jq -r '.body')
+          COMMENTS=$(echo "$ISSUE_JSON" | jq -r '.comments[] | "**\(.author.login):** \(.body)"' 2>/dev/null || echo "")
+
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+
+          # Generate branch slug from title
+          SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9äöüß]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | head -c 50)
+          BRANCH="issue/${{ inputs.issue_number }}-${SLUG}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          # Save full context to files for prompt assembly
+          echo "$BODY" > /tmp/issue_body.md
+          echo "$COMMENTS" > /tmp/issue_comments.md
+
+      - name: Check for existing branch and PR
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if branch already exists (from previous review cycle)
+          if git ls-remote --heads origin "${{ steps.issue.outputs.branch }}" | grep -q .; then
+            echo "branch_exists=true" >> "$GITHUB_OUTPUT"
+            git checkout "${{ steps.issue.outputs.branch }}"
+            git pull origin "${{ steps.issue.outputs.branch }}"
+          else
+            echo "branch_exists=false" >> "$GITHUB_OUTPUT"
+            git checkout -b "${{ steps.issue.outputs.branch }}"
+          fi
+
+          # Check if PR already exists
+          PR_NUMBER=$(gh pr list --head "${{ steps.issue.outputs.branch }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble prompt
+        id: prompt
+        run: |
+          PROMPT=""
+
+          # Add agent identity
+          if [ -f ".claude/agents/developer/IDENTITY.md" ]; then
+            PROMPT+="$(cat .claude/agents/developer/IDENTITY.md)"
+            PROMPT+=$'\n\n'
+          fi
+
+          # Add tools config
+          if [ -f ".claude/agents/developer/TOOLS.md" ]; then
+            PROMPT+="$(cat .claude/agents/developer/TOOLS.md)"
+            PROMPT+=$'\n\n'
+          fi
+
+          # Add memory
+          if [ -f ".claude/agents/developer/MEMORY.md" ]; then
+            PROMPT+="$(cat .claude/agents/developer/MEMORY.md)"
+            PROMPT+=$'\n\n'
+          fi
+
+          # Add last 3 log files
+          LOG_DIR=".claude/agents/developer/logs"
+          if [ -d "$LOG_DIR" ]; then
+            for logfile in $(ls -1 "$LOG_DIR"/*.md 2>/dev/null | sort -r | head -3 | sort); do
+              PROMPT+="## Log: $(basename "$logfile")"
+              PROMPT+=$'\n'
+              PROMPT+="$(cat "$logfile")"
+              PROMPT+=$'\n\n'
+            done
+          fi
+
+          # Add issue context
+          PROMPT+="---"
+          PROMPT+=$'\n\n'
+          PROMPT+="## Your Task"
+          PROMPT+=$'\n\n'
+          PROMPT+="Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}"
+          PROMPT+=$'\n\n'
+          PROMPT+="### Description:"
+          PROMPT+=$'\n\n'
+          PROMPT+="$(cat /tmp/issue_body.md)"
+          PROMPT+=$'\n\n'
+
+          COMMENTS="$(cat /tmp/issue_comments.md)"
+          if [ -n "$COMMENTS" ]; then
+            PROMPT+="### Comments:"
+            PROMPT+=$'\n\n'
+            PROMPT+="$COMMENTS"
+            PROMPT+=$'\n\n'
+          fi
+
+          # Add review feedback if this is a re-work cycle
+          if [ "${{ inputs.review_cycle }}" != "0" ] && [ -n "${{ steps.existing.outputs.pr_number }}" ]; then
+            PROMPT+="### Review Feedback (cycle ${{ inputs.review_cycle }}):"
+            PROMPT+=$'\n\n'
+            PROMPT+="Review comments from the previous cycle are on the PR. Read them with:"
+            PROMPT+=$'\n'
+            PROMPT+="gh pr view ${{ steps.existing.outputs.pr_number }} --comments"
+            PROMPT+=$'\n\n'
+          fi
+
+          # Add instructions
+          PROMPT+="---"
+          PROMPT+=$'\n\n'
+          PROMPT+="## Instructions"
+          PROMPT+=$'\n\n'
+          PROMPT+="1. Read and understand the issue requirements"
+          PROMPT+=$'\n'
+          PROMPT+="2. Implement the solution"
+          PROMPT+=$'\n'
+          PROMPT+="3. Write tests as specified in TOOLS.md"
+          PROMPT+=$'\n'
+          PROMPT+="4. Run the test and lint commands from TOOLS.md"
+          PROMPT+=$'\n'
+          PROMPT+="5. Commit your changes with clear, conventional commit messages"
+          PROMPT+=$'\n'
+          PROMPT+="6. Write a log entry for today to .claude/agents/developer/logs/$(date +%Y-%m-%d).md"
+          PROMPT+=$'\n\n'
+          PROMPT+="IMPORTANT: Do NOT create a branch or push. Do NOT create a PR. Just implement, test, and commit locally."
+
+          # Save prompt to file
+          echo "$PROMPT" > /tmp/developer_prompt.md
+
+      - name: Run Claude Code
+        id: claude
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          claude -p "$(cat /tmp/developer_prompt.md)" \
+            --dangerously-skip-permissions \
+            --output-format json \
+            --max-turns 100 \
+            --model sonnet \
+            > /tmp/claude_output.json 2>&1 || {
+              EXIT_CODE=$?
+              echo "claude_failed=true" >> "$GITHUB_OUTPUT"
+              echo "::error::Claude Code exited with code $EXIT_CODE"
+              exit 0
+            }
+          echo "claude_failed=false" >> "$GITHUB_OUTPUT"
+
+      - name: Handle Claude failure
+        if: steps.claude.outputs.claude_failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "Developer agent failed on cycle ${{ inputs.review_cycle }}. [See workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+          # Check if this is a repeated failure
+          LABELS=$(gh issue view "${{ inputs.issue_number }}" --json labels --jq '.labels[].name')
+          if echo "$LABELS" | grep -q "agent-error"; then
+            # Second consecutive failure — mark as failed
+            gh label create "agent-failed" --color "B60205" --description "Agent failed repeatedly" 2>/dev/null || true
+            gh issue edit "${{ inputs.issue_number }}" --add-label "agent-failed"
+            gh issue edit "${{ inputs.issue_number }}" --remove-label "agent-error" 2>/dev/null || true
+          else
+            # First failure — mark as error, will retry on next trigger
+            gh label create "agent-error" --color "D93F0B" --description "Agent encountered an error" 2>/dev/null || true
+            gh issue edit "${{ inputs.issue_number }}" --add-label "agent-error"
+          fi
+          exit 1
+
+      - name: Push changes
+        if: steps.claude.outputs.claude_failed != 'true'
+        run: |
+          # Check if there are any commits to push
+          if git diff --quiet origin/main..HEAD 2>/dev/null; then
+            echo "::warning::No new commits from Claude. Nothing to push."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            git push origin "${{ steps.issue.outputs.branch }}" --force-with-lease
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+            # Remove agent-error label if present (successful run clears it)
+            gh issue edit "${{ inputs.issue_number }}" --remove-label "agent-error" 2>/dev/null || true
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Create or update PR
+        if: steps.claude.outputs.claude_failed != 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ steps.existing.outputs.pr_number }}" ]; then
+            # PR already exists (re-work cycle) — just get the number
+            echo "pr_number=${{ steps.existing.outputs.pr_number }}" >> "$GITHUB_OUTPUT"
+            echo "::notice::Updated existing PR #${{ steps.existing.outputs.pr_number }}"
+          else
+            # Create new PR
+            PR_URL=$(gh pr create \
+              --title "Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}" \
+              --body "$(cat <<EOF
+Closes #${{ inputs.issue_number }}
+
+## Summary
+
+Automated implementation by Developer Agent (cycle ${{ inputs.review_cycle }}).
+
+See issue #${{ inputs.issue_number }} for requirements.
+EOF
+)" \
+              --head "${{ steps.issue.outputs.branch }}" \
+              --base main)
+
+            PR_NUMBER=$(echo "$PR_URL" | grep -oP '\d+$')
+            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "::notice::Created PR #$PR_NUMBER"
+          fi
+
+      - name: Update project status to In Review
+        if: steps.claude.outputs.claude_failed != 'true' && inputs.project_node_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          FIELD_DATA=$(gh api graphql -f query='
+            query($projectId: ID!) {
+              node(id: $projectId) {
+                ... on ProjectV2 {
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        name
+                        options { id name }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f projectId="${{ inputs.project_node_id }}" \
+            --jq '.data.node.fields.nodes[] | select(.name == "Status")')
+
+          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
+          OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Review") | .id')
+
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) {
+                projectV2Item { id }
+              }
+            }' \
+            -f projectId="${{ inputs.project_node_id }}" \
+            -f itemId="${{ inputs.item_node_id }}" \
+            -f fieldId="$FIELD_ID" \
+            -f optionId="$OPTION_ID"
+
+      - name: Dispatch reviewer workflow
+        if: steps.claude.outputs.claude_failed != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        run: |
+          gh workflow run agentic-reviewer.yml \
+            --repo "${{ github.repository }}" \
+            -f issue_number="${{ inputs.issue_number }}" \
+            -f pr_number="${{ steps.pr.outputs.pr_number }}" \
+            -f review_cycle="${{ inputs.review_cycle }}" \
+            -f max_review_cycles="${{ inputs.max_review_cycles }}" \
+            -f project_node_id="${{ inputs.project_node_id }}" \
+            -f item_node_id="${{ inputs.item_node_id }}"
