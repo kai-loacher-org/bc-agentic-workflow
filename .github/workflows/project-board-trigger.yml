@@ -12,8 +12,10 @@ permissions:
 
 jobs:
   orchestrate:
-    # Only trigger when a single-select field (e.g. Status) changes
-    if: github.event.changes.field_value.field_type == 'single_select'
+    # Only trigger for issues (not PRs/drafts) when a single-select field (e.g. Status) changes
+    if: >-
+      github.event.projects_v2_item.content_type == 'Issue' &&
+      github.event.changes.field_value.field_type == 'single_select'
     uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/orchestrator.yml@main
     with:
       item_node_id: ${{ github.event.projects_v2_item.node_id }}

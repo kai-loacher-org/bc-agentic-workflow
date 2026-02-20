@@ -10,10 +10,18 @@ on:
   projects_v2_item:
     types: [edited]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
 jobs:
   orchestrate:
-    # Only run for issue items (not PRs or draft issues)
-    if: github.event.projects_v2_item.content_type == 'Issue'
+    # Only trigger for issues (not PRs/drafts) when a single-select field (e.g. Status) changes
+    if: >-
+      github.event.projects_v2_item.content_type == 'Issue' &&
+      github.event.changes.field_value.field_type == 'single_select'
     uses: OWNER/bc-agentic-workflow/.github/workflows/orchestrator.yml@main
     with:
       item_node_id: ${{ github.event.projects_v2_item.node_id }}
