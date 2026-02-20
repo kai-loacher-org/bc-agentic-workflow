@@ -179,7 +179,7 @@ jobs:
       - name: Run Claude Code
         id: claude
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDECODE: ""
         run: |
           claude -p "$(cat /tmp/developer_prompt.md)" \
