@@ -204,5 +204,6 @@ jobs:
             --repo "${{ steps.issue.outputs.repo }}" \
             -f issue_number="${{ steps.issue.outputs.number }}" \
             -f review_cycle="0" \
+            -f max_review_cycles="3" \
             -f project_node_id="${{ inputs.project_node_id || '' }}" \
             -f item_node_id="${{ inputs.item_node_id || '' }}"

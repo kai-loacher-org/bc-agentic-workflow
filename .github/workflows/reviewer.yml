@@ -55,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout PR branch
+      - name: Switch to PR head ref
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -322,6 +322,7 @@ jobs:
               --repo "${{ github.repository }}" \
               -f issue_number="${{ inputs.issue_number }}" \
               -f review_cycle="${NEXT_CYCLE}" \
+              -f max_review_cycles="${{ inputs.max_review_cycles }}" \
               -f project_node_id="${{ inputs.project_node_id }}" \
               -f item_node_id="${{ inputs.item_node_id }}"
           fi

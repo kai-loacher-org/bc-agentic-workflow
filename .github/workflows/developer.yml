@@ -178,6 +178,10 @@ jobs:
           # Save prompt to file
           echo "$PROMPT" > /tmp/developer_prompt.md
 
+      - name: Save pre-Claude HEAD
+        id: pre_claude
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code
         id: claude
         env:
@@ -220,9 +224,10 @@ jobs:
 
       - name: Push changes
         if: steps.claude.outputs.claude_failed != 'true'
+        id: push
         run: |
-          # Check if there are any commits to push
-          if git diff --quiet origin/main..HEAD 2>/dev/null; then
+          # Check if Claude made any new commits
+          if [ "$(git rev-parse HEAD)" = "${{ steps.pre_claude.outputs.sha }}" ]; then
             echo "::warning::No new commits from Claude. Nothing to push."
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           else
@@ -236,7 +241,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Create or update PR
-        if: steps.claude.outputs.claude_failed != 'true'
+        if: steps.claude.outputs.claude_failed != 'true' && steps.push.outputs.has_changes != 'false'
         id: pr
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
@@ -262,13 +267,13 @@ EOF
               --head "${{ steps.issue.outputs.branch }}" \
               --base main)
 
-            PR_NUMBER=$(echo "$PR_URL" | grep -oP '\d+$')
+            PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]*$')
             echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
             echo "::notice::Created PR #$PR_NUMBER"
           fi
 
       - name: Update project status to In Review
-        if: steps.claude.outputs.claude_failed != 'true' && inputs.project_node_id != ''
+        if: steps.claude.outputs.claude_failed != 'true' && steps.push.outputs.has_changes != 'false' && inputs.project_node_id != ''
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -310,7 +315,7 @@ EOF
             -f optionId="$OPTION_ID"
 
       - name: Dispatch reviewer workflow
-        if: steps.claude.outputs.claude_failed != 'true'
+        if: steps.claude.outputs.claude_failed != 'true' && steps.push.outputs.has_changes != 'false'
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
