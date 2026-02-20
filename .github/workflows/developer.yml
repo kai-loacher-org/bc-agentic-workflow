@@ -35,12 +35,6 @@ on:
         description: "PAT for cross-repo dispatch and project updates"
         required: true
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: write
-
 jobs:
   develop:
     runs-on: agentic-developer

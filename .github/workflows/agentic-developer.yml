@@ -28,9 +28,15 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
 jobs:
   develop:
-    uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/developer-test.yml@main
+    uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/developer.yml@main
     with:
       issue_number: ${{ inputs.issue_number }}
       review_cycle: ${{ inputs.review_cycle }}

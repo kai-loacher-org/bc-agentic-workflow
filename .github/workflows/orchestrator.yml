@@ -32,11 +32,6 @@ on:
         type: string
         required: true
 
-permissions:
-  issues: write
-  contents: read
-  actions: write
-
 jobs:
   orchestrate:
     runs-on: self-hosted

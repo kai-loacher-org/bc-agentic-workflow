@@ -32,6 +32,12 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
 jobs:
   review:
     uses: kai-loacher-org/bc-agentic-workflow/.github/workflows/reviewer.yml@main
