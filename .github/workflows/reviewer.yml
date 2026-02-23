@@ -201,50 +201,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          echo "::notice::PR #${{ inputs.pr_number }} approved! Moving issue to Done."
+          echo "::notice::PR #${{ inputs.pr_number }} approved! Status stays on 'In review' for human review."
 
-          # Update project status to Done
-          if [ -n "${{ inputs.project_node_id }}" ]; then
-            FIELD_DATA=$(gh api graphql -f query='
-              query($projectId: ID!) {
-                node(id: $projectId) {
-                  ... on ProjectV2 {
-                    fields(first: 20) {
-                      nodes {
-                        ... on ProjectV2SingleSelectField {
-                          id
-                          name
-                          options { id name }
-                        }
-                      }
-                    }
-                  }
-                }
-              }' -f projectId="${{ inputs.project_node_id }}" \
-              --jq '.data.node.fields.nodes[] | select(.name == "Status")')
-
-            FIELD_ID="$(echo "$FIELD_DATA" | jq -r '.id')"
-            OPTION_ID="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')"
-
-            gh api graphql -f query='
-              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: $projectId
-                  itemId: $itemId
-                  fieldId: $fieldId
-                  value: { singleSelectOptionId: $optionId }
-                }) {
-                  projectV2Item { id }
-                }
-              }' \
-              -f projectId="${{ inputs.project_node_id }}" \
-              -f itemId="${{ inputs.item_node_id }}" \
-              -f fieldId="$FIELD_ID" \
-              -f optionId="$OPTION_ID"
-          fi
+          # Status stays on "In review" — no project board update needed.
+          # The user will move to "Done" after merging the PR.
 
           gh issue comment "${{ inputs.issue_number }}" \
-            --body "PR #${{ inputs.pr_number }} has been approved by the Reviewer agent. Ready for your final review and merge."
+            --repo "${{ github.repository }}" \
+            --body "PR #${{ inputs.pr_number }} has been approved by the Reviewer agent. Please review and merge the PR, then move the issue to Done."
 
       - name: Handle changes requested
         if: steps.decision.outputs.review_state == 'CHANGES_REQUESTED'
