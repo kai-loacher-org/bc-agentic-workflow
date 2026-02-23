@@ -170,8 +170,10 @@ jobs:
             }' -f projectId="${{ inputs.project_node_id }}" \
             --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')
+          FIELD_ID_STR="$(echo "$FIELD_DATA" | jq -r '.id')"
+          OPTION_ID_STR="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')"
+
+          echo "::debug::FIELD_ID=$FIELD_ID_STR OPTION_ID=$OPTION_ID_STR"
 
           # Update status
           gh api graphql -f query='
@@ -187,8 +189,8 @@ jobs:
             }' \
             -f projectId="${{ inputs.project_node_id }}" \
             -f itemId="${{ inputs.item_node_id }}" \
-            -f fieldId="$FIELD_ID" \
-            -f optionId="$OPTION_ID"
+            -f fieldId="$FIELD_ID_STR" \
+            -f optionId="$OPTION_ID_STR"
 
       - name: Dispatch developer workflow
         if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'

@@ -286,8 +286,10 @@ jobs:
             }' -f projectId="${{ inputs.project_node_id }}" \
             --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-          FIELD_ID=$(echo "$FIELD_DATA" | jq -r '.id')
-          OPTION_ID=$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Review") | .id')
+          FIELD_ID_STR="$(echo "$FIELD_DATA" | jq -r '.id')"
+          OPTION_ID_STR="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Review") | .id')"
+
+          echo "::debug::FIELD_ID=$FIELD_ID_STR OPTION_ID=$OPTION_ID_STR"
 
           gh api graphql -f query='
             mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
@@ -302,8 +304,8 @@ jobs:
             }' \
             -f projectId="${{ inputs.project_node_id }}" \
             -f itemId="${{ inputs.item_node_id }}" \
-            -f fieldId="$FIELD_ID" \
-            -f optionId="$OPTION_ID"
+            -f fieldId="$FIELD_ID_STR" \
+            -f optionId="$OPTION_ID_STR"
 
       - name: Dispatch reviewer workflow
         if: steps.claude.outputs.claude_failed != 'true' && steps.push.outputs.has_changes != 'false'
