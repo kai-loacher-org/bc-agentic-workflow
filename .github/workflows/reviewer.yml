@@ -140,83 +140,56 @@ jobs:
 
       - name: Assemble review prompt
         run: |
-          PROMPT=""
+          cat > /tmp/reviewer_prompt.md << 'PROMPT_EOF'
+          ## Bootstrap
 
-          # Add agent identity
-          if [ -f ".claude/agents/reviewer/IDENTITY.md" ]; then
-            PROMPT+="$(cat .claude/agents/reviewer/IDENTITY.md)"
-            PROMPT+=$'\n\n'
-          fi
+          Read these files to understand who you are, your tools, and your memory:
+          - `.claude/agents/reviewer/IDENTITY.md` — your identity and review criteria
+          - `.claude/agents/reviewer/TOOLS.md` — build, test, and lint commands
+          - `.claude/agents/reviewer/MEMORY.md` — your persistent memory
 
-          # Add tools config
-          if [ -f ".claude/agents/reviewer/TOOLS.md" ]; then
-            PROMPT+="$(cat .claude/agents/reviewer/TOOLS.md)"
-            PROMPT+=$'\n\n'
-          fi
+          Then read your recent logs from `.claude/agents/reviewer/logs/` (last 3 entries).
 
-          # Add memory
-          if [ -f ".claude/agents/reviewer/MEMORY.md" ]; then
-            PROMPT+="$(cat .claude/agents/reviewer/MEMORY.md)"
-            PROMPT+=$'\n\n'
-          fi
+          These files belong to you. Update `MEMORY.md` to persist learnings across sessions.
 
-          # Add last 3 log files
-          LOG_DIR=".claude/agents/reviewer/logs"
-          if [ -d "$LOG_DIR" ]; then
-            for logfile in $(ls -1 "$LOG_DIR"/*.md 2>/dev/null | sort -r | head -3 | sort); do
-              PROMPT+="## Log: $(basename "$logfile")"
-              PROMPT+=$'\n'
-              PROMPT+="$(cat "$logfile")"
-              PROMPT+=$'\n\n'
-            done
-          fi
+          PROMPT_EOF
 
-          # Add review context
-          PROMPT+="---"
-          PROMPT+=$'\n\n'
-          PROMPT+="## Your Task"
-          PROMPT+=$'\n\n'
-          PROMPT+="Review PR #${{ inputs.pr_number }} for Issue #${{ inputs.issue_number }}: ${{ steps.context.outputs.issue_title }}"
-          PROMPT+=$'\n\n'
-          PROMPT+="### Issue Description:"
-          PROMPT+=$'\n\n'
-          PROMPT+="$(cat /tmp/issue_body.md)"
-          PROMPT+=$'\n\n'
-          PROMPT+="### PR Diff:"
-          PROMPT+=$'\n\n'
-          PROMPT+='```diff'
-          PROMPT+=$'\n'
-          PROMPT+="$(cat /tmp/pr_diff.txt)"
-          PROMPT+=$'\n'
-          PROMPT+='```'
-          PROMPT+=$'\n\n'
+          cat >> /tmp/reviewer_prompt.md << TASK_EOF
+          ---
 
-          # Add instructions
-          PROMPT+="---"
-          PROMPT+=$'\n\n'
-          PROMPT+="## Instructions"
-          PROMPT+=$'\n\n'
-          PROMPT+="1. Read and understand the issue requirements"
-          PROMPT+=$'\n'
-          PROMPT+="2. Review the code changes in the PR diff above"
-          PROMPT+=$'\n'
-          PROMPT+="3. Check: Does the code fulfill the issue requirements?"
-          PROMPT+=$'\n'
-          PROMPT+="4. Check: Are there tests for new functionality?"
-          PROMPT+=$'\n'
-          PROMPT+="5. Check: Is the code clean, secure, and maintainable?"
-          PROMPT+=$'\n'
-          PROMPT+="6. Post your review using gh pr review:"
-          PROMPT+=$'\n'
-          PROMPT+="   - If approved: gh pr review ${{ inputs.pr_number }} --approve --body \"Your approval message\""
-          PROMPT+=$'\n'
-          PROMPT+="   - If changes needed: gh pr review ${{ inputs.pr_number }} --request-changes --body \"Your detailed feedback\""
-          PROMPT+=$'\n'
-          PROMPT+="7. Write a log entry for today to .claude/agents/reviewer/logs/$(date +%Y-%m-%d).md"
-          PROMPT+=$'\n\n'
-          PROMPT+="IMPORTANT: You MUST post exactly one review using gh pr review. Either --approve or --request-changes."
+          ## Your Task
 
-          echo "$PROMPT" > /tmp/reviewer_prompt.md
+          Review PR #${{ inputs.pr_number }} for Issue #${{ inputs.issue_number }}: ${{ steps.context.outputs.issue_title }}
+
+          ### Issue Description:
+
+          $(cat /tmp/issue_body.md)
+
+          ### PR Diff:
+
+          Read the full diff with: gh pr diff ${{ inputs.pr_number }}
+
+          TASK_EOF
+
+          cat >> /tmp/reviewer_prompt.md << 'INSTRUCTIONS_EOF'
+          ---
+
+          ## Instructions
+
+          1. Read your bootstrap files above FIRST
+          2. Read and understand the issue requirements
+          3. Read the PR diff using `gh pr diff`
+          4. Check: Does the code fulfill the issue requirements?
+          5. Check: Are there tests for new functionality?
+          6. Check: Is the code clean, secure, and maintainable?
+          7. Post your review using `gh pr review`:
+             - If approved: `gh pr review --approve --body "Your approval message"`
+             - If changes needed: `gh pr review --request-changes --body "Your detailed feedback"`
+          8. Update `.claude/agents/reviewer/MEMORY.md` with any learnings
+          9. Write a log entry to `.claude/agents/reviewer/logs/YYYY-MM-DD.md`
+
+          IMPORTANT: You MUST post exactly one review using gh pr review. Either --approve or --request-changes.
+          INSTRUCTIONS_EOF
 
       - name: Run Claude Code
         id: claude

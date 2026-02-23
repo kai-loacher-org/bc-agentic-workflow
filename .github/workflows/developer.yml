@@ -163,88 +163,70 @@ jobs:
       - name: Assemble prompt
         id: prompt
         run: |
-          PROMPT=""
+          cat > /tmp/developer_prompt.md << 'PROMPT_EOF'
+          ## Bootstrap
 
-          # Add agent identity
-          if [ -f ".claude/agents/developer/IDENTITY.md" ]; then
-            PROMPT+="$(cat .claude/agents/developer/IDENTITY.md)"
-            PROMPT+=$'\n\n'
-          fi
+          Read these files to understand who you are, your tools, and your memory:
+          - `.claude/agents/developer/IDENTITY.md` — your identity and principles
+          - `.claude/agents/developer/TOOLS.md` — build, test, and lint commands
+          - `.claude/agents/developer/MEMORY.md` — your persistent memory
 
-          # Add tools config
-          if [ -f ".claude/agents/developer/TOOLS.md" ]; then
-            PROMPT+="$(cat .claude/agents/developer/TOOLS.md)"
-            PROMPT+=$'\n\n'
-          fi
+          Then read your recent logs from `.claude/agents/developer/logs/` (last 3 entries).
 
-          # Add memory
-          if [ -f ".claude/agents/developer/MEMORY.md" ]; then
-            PROMPT+="$(cat .claude/agents/developer/MEMORY.md)"
-            PROMPT+=$'\n\n'
-          fi
+          These files belong to you. Update `MEMORY.md` to persist learnings across sessions.
 
-          # Add last 3 log files
-          LOG_DIR=".claude/agents/developer/logs"
-          if [ -d "$LOG_DIR" ]; then
-            for logfile in $(ls -1 "$LOG_DIR"/*.md 2>/dev/null | sort -r | head -3 | sort); do
-              PROMPT+="## Log: $(basename "$logfile")"
-              PROMPT+=$'\n'
-              PROMPT+="$(cat "$logfile")"
-              PROMPT+=$'\n\n'
-            done
-          fi
+          PROMPT_EOF
 
-          # Add issue context
-          PROMPT+="---"
-          PROMPT+=$'\n\n'
-          PROMPT+="## Your Task"
-          PROMPT+=$'\n\n'
-          PROMPT+="Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}"
-          PROMPT+=$'\n\n'
-          PROMPT+="### Description:"
-          PROMPT+=$'\n\n'
-          PROMPT+="$(cat /tmp/issue_body.md)"
-          PROMPT+=$'\n\n'
+          # Add issue context (requires auth, so we fetch it here)
+          cat >> /tmp/developer_prompt.md << TASK_EOF
+          ---
+
+          ## Your Task
+
+          Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}
+
+          ### Description:
+
+          $(cat /tmp/issue_body.md)
+
+          TASK_EOF
 
           COMMENTS="$(cat /tmp/issue_comments.md)"
           if [ -n "$COMMENTS" ]; then
-            PROMPT+="### Comments:"
-            PROMPT+=$'\n\n'
-            PROMPT+="$COMMENTS"
-            PROMPT+=$'\n\n'
+            cat >> /tmp/developer_prompt.md << COMMENTS_EOF
+          ### Comments:
+
+          $COMMENTS
+
+          COMMENTS_EOF
           fi
 
-          # Add review feedback if this is a re-work cycle
           if [ "${{ inputs.review_cycle }}" != "0" ] && [ -n "${{ steps.existing.outputs.pr_number }}" ]; then
-            PROMPT+="### Review Feedback (cycle ${{ inputs.review_cycle }}):"
-            PROMPT+=$'\n\n'
-            PROMPT+="Review comments from the previous cycle are on the PR. Read them with:"
-            PROMPT+=$'\n'
-            PROMPT+="gh pr view ${{ steps.existing.outputs.pr_number }} --comments"
-            PROMPT+=$'\n\n'
+            cat >> /tmp/developer_prompt.md << REVIEW_EOF
+          ### Review Feedback (cycle ${{ inputs.review_cycle }}):
+
+          Review comments from the previous cycle are on the PR. Read them with:
+          gh pr view ${{ steps.existing.outputs.pr_number }} --comments
+
+          REVIEW_EOF
           fi
 
-          # Add instructions
-          PROMPT+="---"
-          PROMPT+=$'\n\n'
-          PROMPT+="## Instructions"
-          PROMPT+=$'\n\n'
-          PROMPT+="1. Read and understand the issue requirements"
-          PROMPT+=$'\n'
-          PROMPT+="2. Implement the solution"
-          PROMPT+=$'\n'
-          PROMPT+="3. Write tests as specified in TOOLS.md"
-          PROMPT+=$'\n'
-          PROMPT+="4. Run the test and lint commands from TOOLS.md"
-          PROMPT+=$'\n'
-          PROMPT+="5. Commit your changes with clear, conventional commit messages"
-          PROMPT+=$'\n'
-          PROMPT+="6. Write a log entry for today to .claude/agents/developer/logs/$(date +%Y-%m-%d).md"
-          PROMPT+=$'\n\n'
-          PROMPT+="IMPORTANT: Do NOT create a branch or push. Do NOT create a PR. Just implement, test, and commit locally."
+          cat >> /tmp/developer_prompt.md << 'INSTRUCTIONS_EOF'
+          ---
 
-          # Save prompt to file
-          echo "$PROMPT" > /tmp/developer_prompt.md
+          ## Instructions
+
+          1. Read your bootstrap files above FIRST
+          2. Read and understand the issue requirements
+          3. Implement the solution
+          4. Write tests as specified in your TOOLS.md
+          5. Run the test and lint commands from your TOOLS.md
+          6. Commit your changes with clear, conventional commit messages
+          7. Update `.claude/agents/developer/MEMORY.md` with any learnings
+          8. Write a log entry to `.claude/agents/developer/logs/YYYY-MM-DD.md`
+
+          IMPORTANT: Do NOT create a branch or push. Do NOT create a PR. Just implement, test, and commit locally.
+          INSTRUCTIONS_EOF
 
       - name: Save pre-Claude HEAD
         id: pre_claude
