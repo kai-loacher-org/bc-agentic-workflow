@@ -53,6 +53,44 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup prerequisites
+        run: |
+          NEED_APT=false
+          PACKAGES=""
+
+          # Node.js / npm (required to install Claude Code CLI)
+          if ! command -v npm &>/dev/null; then
+            NEED_APT=true
+            PACKAGES="nodejs npm"
+          fi
+
+          # jq
+          if ! command -v jq &>/dev/null; then
+            NEED_APT=true
+            PACKAGES="$PACKAGES jq"
+          fi
+
+          # python3
+          if ! command -v python3 &>/dev/null; then
+            NEED_APT=true
+            PACKAGES="$PACKAGES python3"
+          fi
+
+          if [ "$NEED_APT" = "true" ]; then
+            echo "::group::Installing missing packages:$PACKAGES"
+            sudo apt-get update -qq && sudo apt-get install -y $PACKAGES
+            echo "::endgroup::"
+          fi
+
+          # Claude Code CLI
+          if ! command -v claude &>/dev/null; then
+            echo "::group::Installing Claude Code CLI"
+            npm install -g @anthropic-ai/claude-code
+            echo "::endgroup::"
+          else
+            echo "claude already installed: $(claude --version 2>/dev/null || echo 'ok')"
+          fi
+
       - name: Read repo config
         id: config
         run: |
