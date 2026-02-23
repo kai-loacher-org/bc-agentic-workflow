@@ -162,6 +162,21 @@ jobs:
 
           echo "$PROMPT" > /tmp/reviewer_prompt.md
 
+      - name: Check for existing session
+        id: session
+        run: |
+          SESSION_DIR="$HOME/.claude-sessions"
+          mkdir -p "$SESSION_DIR"
+          SESSION_FILE="$SESSION_DIR/review-${{ inputs.issue_number }}.id"
+          if [ -f "$SESSION_FILE" ]; then
+            echo "session_id=$(cat "$SESSION_FILE")" >> "$GITHUB_OUTPUT"
+            echo "has_session=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Resuming session $(cat "$SESSION_FILE")"
+          else
+            echo "has_session=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Starting new session"
+          fi
+
       - name: Run Claude Code
         id: claude
         env:
@@ -169,18 +184,36 @@ jobs:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
           CLAUDECODE: ""
         run: |
+          RESUME_FLAG=""
+          if [ "${{ steps.session.outputs.has_session }}" = "true" ]; then
+            RESUME_FLAG="--resume ${{ steps.session.outputs.session_id }}"
+          fi
+
           claude -p "$(cat /tmp/reviewer_prompt.md)" \
+            $RESUME_FLAG \
             --dangerously-skip-permissions \
             --output-format json \
             --max-turns 30 \
             --model sonnet \
-            > /tmp/claude_output.json 2>&1 || {
+            > /tmp/claude_output.json 2>/tmp/claude_stderr.log || {
               EXIT_CODE=$?
               echo "claude_failed=true" >> "$GITHUB_OUTPUT"
               echo "::error::Claude Code (reviewer) exited with code $EXIT_CODE"
+              cat /tmp/claude_stderr.log
               exit 0
             }
           echo "claude_failed=false" >> "$GITHUB_OUTPUT"
+
+      - name: Save session ID
+        if: steps.claude.outputs.claude_failed != 'true'
+        run: |
+          SESSION_DIR="$HOME/.claude-sessions"
+          mkdir -p "$SESSION_DIR"
+          SESSION_ID=$(jq -r '.session_id' /tmp/claude_output.json)
+          if [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "null" ]; then
+            echo "$SESSION_ID" > "$SESSION_DIR/review-${{ inputs.issue_number }}.id"
+            echo "::notice::Saved session $SESSION_ID"
+          fi
 
       - name: Handle Claude failure
         if: steps.claude.outputs.claude_failed == 'true'
