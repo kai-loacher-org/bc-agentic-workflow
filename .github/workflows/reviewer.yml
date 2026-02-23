@@ -49,6 +49,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Post run link to issue
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "**Reviewer Agent** started (cycle ${{ inputs.review_cycle }}).
+          [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
       - name: Switch to PR head ref
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
@@ -208,7 +216,7 @@ jobs:
 
           gh issue comment "${{ inputs.issue_number }}" \
             --repo "${{ github.repository }}" \
-            --body "PR #${{ inputs.pr_number }} has been approved by the Reviewer agent. Please review and merge the PR, then move the issue to Done."
+            --body "**Reviewer Agent** (cycle ${{ inputs.review_cycle }}): PR #${{ inputs.pr_number }} approved. Please review and merge the PR, then move the issue to Done."
 
       - name: Handle changes requested
         if: steps.decision.outputs.review_state == 'CHANGES_REQUESTED'
@@ -224,7 +232,7 @@ jobs:
               --description "Agent review cycles exhausted" 2>/dev/null || true
             gh issue edit "${{ inputs.issue_number }}" --add-label "needs-human-review"
             gh issue comment "${{ inputs.issue_number }}" \
-              --body "Reviewer agent requested changes after $NEXT_CYCLE cycles (max: ${{ inputs.max_review_cycles }}). Please review PR #${{ inputs.pr_number }} manually."
+              --body "**Reviewer Agent**: Max review cycles (${{ inputs.max_review_cycles }}) reached. Please review PR #${{ inputs.pr_number }} manually."
           else
             echo "::notice::Changes requested. Starting cycle $NEXT_CYCLE."
 

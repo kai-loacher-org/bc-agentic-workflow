@@ -45,6 +45,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Post run link to issue
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "**Developer Agent** started (cycle ${{ inputs.review_cycle }}).
+          [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
       - name: Fetch issue context
         id: issue
         env:
