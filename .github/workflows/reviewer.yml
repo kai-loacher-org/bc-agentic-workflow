@@ -265,7 +265,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
           gh issue comment "${{ inputs.issue_number }}" \
-            --body "Reviewer agent failed on cycle ${{ inputs.review_cycle }}. [See workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            --body "Reviewer Agent failed on cycle ${{ inputs.review_cycle }}. [See workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           exit 1
 
       - name: Check review decision

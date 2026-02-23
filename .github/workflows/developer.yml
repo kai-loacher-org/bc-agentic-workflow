@@ -296,7 +296,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
           gh issue comment "${{ inputs.issue_number }}" \
-            --body "Developer agent failed on cycle ${{ inputs.review_cycle }}. [See workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            --body "Developer Agent failed on cycle ${{ inputs.review_cycle }}. [See workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
 
           # Check if this is a repeated failure
           LABELS=$(gh issue view "${{ inputs.issue_number }}" --json labels --jq '.labels[].name')
