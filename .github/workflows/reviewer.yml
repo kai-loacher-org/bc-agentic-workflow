@@ -57,8 +57,10 @@ jobs:
         run: |
           if [ -f ".claude/config.yml" ]; then
             YOLO_MODE=$(grep '^yolo_mode:' .claude/config.yml | sed 's/yolo_mode://' | tr -d ' "'"'" | head -1)
+            MAX_CYCLES=$(grep '^max_review_cycles:' .claude/config.yml | sed 's/max_review_cycles://' | tr -d ' "'"'" | head -1)
           fi
           echo "yolo_mode=${YOLO_MODE:-false}" >> "$GITHUB_OUTPUT"
+          echo "max_review_cycles=${MAX_CYCLES:-${{ inputs.max_review_cycles }}}" >> "$GITHUB_OUTPUT"
 
       - name: Post run link to issue
         env:
@@ -303,15 +305,16 @@ jobs:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           NEXT_CYCLE=$(( ${{ inputs.review_cycle }} + 1 ))
+          MAX_CYCLES="${{ steps.config.outputs.max_review_cycles }}"
 
-          if [ "$NEXT_CYCLE" -ge "${{ inputs.max_review_cycles }}" ]; then
-            echo "::warning::Max review cycles (${{ inputs.max_review_cycles }}) reached. Escalating to human."
+          if [ "$NEXT_CYCLE" -ge "$MAX_CYCLES" ]; then
+            echo "::warning::Max review cycles ($MAX_CYCLES) reached. Escalating to human."
 
             gh label create "needs-human-review" --color "FBCA04" \
               --description "Agent review cycles exhausted" 2>/dev/null || true
             gh issue edit "${{ inputs.issue_number }}" --add-label "needs-human-review"
             gh issue comment "${{ inputs.issue_number }}" \
-              --body "**Reviewer Agent**: Max review cycles (${{ inputs.max_review_cycles }}) reached. Please review PR #${{ inputs.pr_number }} manually."
+              --body "**Reviewer Agent**: Max review cycles ($MAX_CYCLES) reached. Please review PR #${{ inputs.pr_number }} manually."
           else
             echo "::notice::Changes requested. Starting cycle $NEXT_CYCLE."
 

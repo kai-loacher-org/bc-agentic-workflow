@@ -1,20 +1,14 @@
 # Organization-wide defaults for the agentic workflow.
-# These values are used as defaults in reusable workflow inputs.
-# Target repos can override them in their wrapper workflows.
+# These are the default values. Each target repo can override
+# them by placing a .claude/config.yml in the repo root.
+#
+# See examples/target-repo/.claude/config.yml for the full template.
 
 max_review_cycles: 3
-branch_pattern: "issue/{number}-{slug}"
-pr_auto_close_issue: true
+yolo_mode: false
+dedicated_branch: ""
 
-# Per-repo options (override in target repo's .claude/config.yml)
-yolo_mode: false          # auto-merge on reviewer approval
-dedicated_branch: ""      # fixed branch name (empty = per-issue)
-
-# Note: Project board IDs are passed automatically through the
-# projects_v2_item webhook event. No per-repo project config needed.
-# Each repo can use a different project board — the system handles
-# it automatically via the event payload.
-
+# Runner labels (configured in the reusable workflows, not per-repo)
 runners:
   orchestrator: "self-hosted"
   developer: "agentic-developer"

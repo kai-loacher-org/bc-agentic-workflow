@@ -1,5 +1,9 @@
 # Per-repo configuration for the agentic workflow.
 # Place this file at .claude/config.yml in your repository.
+# All values below show their defaults — only set what you want to override.
+
+# Maximum number of developer-reviewer cycles before escalating to a human.
+max_review_cycles: 3
 
 # YOLO mode: When the reviewer approves, auto-merge the PR
 # and set the project status to "Done" without human review.
