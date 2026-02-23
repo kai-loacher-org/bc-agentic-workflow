@@ -138,25 +138,9 @@ jobs:
           echo "$PR_DIFF" > /tmp/pr_diff.txt
           echo "issue_title=$ISSUE_TITLE" >> "$GITHUB_OUTPUT"
 
-      - name: Assemble review prompt
+      - name: Assemble task prompt
         run: |
-          cat > /tmp/reviewer_prompt.md << 'PROMPT_EOF'
-          ## Bootstrap
-
-          Read these files to understand who you are, your tools, and your memory:
-          - `.claude/agents/reviewer/IDENTITY.md` — your identity and review criteria
-          - `.claude/agents/reviewer/TOOLS.md` — build, test, and lint commands
-          - `.claude/agents/reviewer/MEMORY.md` — your persistent memory
-
-          Then read your recent logs from `.claude/agents/reviewer/logs/` (last 3 entries).
-
-          These files belong to you. Update `MEMORY.md` to persist learnings across sessions.
-
-          PROMPT_EOF
-
-          cat >> /tmp/reviewer_prompt.md << TASK_EOF
-          ---
-
+          cat > /tmp/reviewer_prompt.md << TASK_EOF
           ## Your Task
 
           Review PR #${{ inputs.pr_number }} for Issue #${{ inputs.issue_number }}: ${{ steps.context.outputs.issue_title }}
@@ -171,26 +155,6 @@ jobs:
 
           TASK_EOF
 
-          cat >> /tmp/reviewer_prompt.md << 'INSTRUCTIONS_EOF'
-          ---
-
-          ## Instructions
-
-          1. Read your bootstrap files above FIRST
-          2. Read and understand the issue requirements
-          3. Read the PR diff using `gh pr diff`
-          4. Check: Does the code fulfill the issue requirements?
-          5. Check: Are there tests for new functionality?
-          6. Check: Is the code clean, secure, and maintainable?
-          7. Post your review using `gh pr review`:
-             - If approved: `gh pr review --approve --body "Your approval message"`
-             - If changes needed: `gh pr review --request-changes --body "Your detailed feedback"`
-          8. Update `.claude/agents/reviewer/MEMORY.md` with any learnings
-          9. Write a log entry to `.claude/agents/reviewer/logs/YYYY-MM-DD.md`
-
-          IMPORTANT: You MUST post exactly one review using gh pr review. Either --approve or --request-changes.
-          INSTRUCTIONS_EOF
-
       - name: Run Claude Code
         id: claude
         env:
@@ -202,6 +166,7 @@ jobs:
 
           # Try to resume existing session; fall back to new session if not found
           claude -p "$(cat /tmp/reviewer_prompt.md)" \
+            --append-system-prompt-file .claude/agents/reviewer/SYSTEM.md \
             --resume "$SESSION_ID" \
             --dangerously-skip-permissions \
             --output-format json \
@@ -212,6 +177,7 @@ jobs:
               if grep -qi "no conversation found" /tmp/claude_stderr.log 2>/dev/null; then
                 echo "::notice::No existing session, starting fresh"
                 claude -p "$(cat /tmp/reviewer_prompt.md)" \
+                  --append-system-prompt-file .claude/agents/reviewer/SYSTEM.md \
                   --dangerously-skip-permissions \
                   --output-format json \
                   --max-turns 30 \

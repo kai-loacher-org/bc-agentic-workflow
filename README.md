@@ -55,11 +55,13 @@ bc-agentic-workflow/
 │   └── project-board-trigger.yml    # Template for .github repo trigger
 ├── .claude/agents/
 │   ├── developer/                   # Default developer agent config
+│   │   ├── SYSTEM.md                # System prompt (bootstrap + instructions)
 │   │   ├── IDENTITY.md              # Agent personality and principles
 │   │   ├── TOOLS.md                 # Build/test/lint commands
 │   │   ├── MEMORY.md                # Persistent learnings
 │   │   └── logs/                    # Daily activity logs
 │   └── reviewer/                    # Default reviewer agent config
+│       ├── SYSTEM.md
 │       ├── IDENTITY.md
 │       ├── TOOLS.md
 │       ├── MEMORY.md
@@ -233,6 +235,22 @@ The system uses these labels automatically:
 - **`agent-error`** — First failure, can retry
 - **`agent-failed`** — Second consecutive failure, stops processing
 - **`needs-human-review`** — Max review cycles reached, manual intervention needed
+
+## Local Development with Claude Code
+
+You can start a local interactive Claude session with the Developer agent context:
+
+```bash
+claude --append-system-prompt "$(cat .claude/agents/developer/SYSTEM.md)"
+```
+
+Or with the Reviewer agent:
+
+```bash
+claude --append-system-prompt "$(cat .claude/agents/reviewer/SYSTEM.md)"
+```
+
+This loads the agent's bootstrap instructions (identity, tools, memory) into the system prompt so Claude knows who it is from the start.
 
 ## Architecture Decisions
 

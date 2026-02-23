@@ -160,27 +160,10 @@ jobs:
           PR_NUMBER=$(gh pr list --head "${{ steps.issue.outputs.branch }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
           echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
-      - name: Assemble prompt
+      - name: Assemble task prompt
         id: prompt
         run: |
-          cat > /tmp/developer_prompt.md << 'PROMPT_EOF'
-          ## Bootstrap
-
-          Read these files to understand who you are, your tools, and your memory:
-          - `.claude/agents/developer/IDENTITY.md` — your identity and principles
-          - `.claude/agents/developer/TOOLS.md` — build, test, and lint commands
-          - `.claude/agents/developer/MEMORY.md` — your persistent memory
-
-          Then read your recent logs from `.claude/agents/developer/logs/` (last 3 entries).
-
-          These files belong to you. Update `MEMORY.md` to persist learnings across sessions.
-
-          PROMPT_EOF
-
-          # Add issue context (requires auth, so we fetch it here)
-          cat >> /tmp/developer_prompt.md << TASK_EOF
-          ---
-
+          cat > /tmp/developer_prompt.md << TASK_EOF
           ## Your Task
 
           Issue #${{ inputs.issue_number }}: ${{ steps.issue.outputs.title }}
@@ -211,23 +194,6 @@ jobs:
           REVIEW_EOF
           fi
 
-          cat >> /tmp/developer_prompt.md << 'INSTRUCTIONS_EOF'
-          ---
-
-          ## Instructions
-
-          1. Read your bootstrap files above FIRST
-          2. Read and understand the issue requirements
-          3. Implement the solution
-          4. Write tests as specified in your TOOLS.md
-          5. Run the test and lint commands from your TOOLS.md
-          6. Commit your changes with clear, conventional commit messages
-          7. Update `.claude/agents/developer/MEMORY.md` with any learnings
-          8. Write a log entry to `.claude/agents/developer/logs/YYYY-MM-DD.md`
-
-          IMPORTANT: Do NOT create a branch or push. Do NOT create a PR. Just implement, test, and commit locally.
-          INSTRUCTIONS_EOF
-
       - name: Save pre-Claude HEAD
         id: pre_claude
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -242,6 +208,7 @@ jobs:
 
           # Try to resume existing session; fall back to new session if not found
           claude -p "$(cat /tmp/developer_prompt.md)" \
+            --append-system-prompt-file .claude/agents/developer/SYSTEM.md \
             --resume "$SESSION_ID" \
             --dangerously-skip-permissions \
             --output-format json \
@@ -252,6 +219,7 @@ jobs:
               if grep -qi "no conversation found" /tmp/claude_stderr.log 2>/dev/null; then
                 echo "::notice::No existing session, starting fresh"
                 claude -p "$(cat /tmp/developer_prompt.md)" \
+                  --append-system-prompt-file .claude/agents/developer/SYSTEM.md \
                   --dangerously-skip-permissions \
                   --output-format json \
                   --max-turns 100 \
