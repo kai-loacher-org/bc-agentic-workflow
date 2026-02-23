@@ -43,6 +43,9 @@ jobs:
   review:
     runs-on: agentic-reviewer
     timeout-minutes: 30
+    concurrency:
+      group: review-issue-${{ inputs.issue_number }}
+      cancel-in-progress: false
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -171,6 +174,7 @@ jobs:
         run: |
           SESSION_ID=$(python3 -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '${{ github.repository }}/issues/${{ inputs.issue_number }}/review'))")
 
+          # Try to resume existing session; fall back to new session if not found
           claude -p "$(cat /tmp/reviewer_prompt.md)" \
             --resume "$SESSION_ID" \
             --dangerously-skip-permissions \
@@ -179,10 +183,26 @@ jobs:
             --model sonnet \
             > /tmp/claude_output.json 2>/tmp/claude_stderr.log || {
               EXIT_CODE=$?
-              echo "claude_failed=true" >> "$GITHUB_OUTPUT"
-              echo "::error::Claude Code (reviewer) exited with code $EXIT_CODE"
-              cat /tmp/claude_stderr.log
-              exit 0
+              if grep -qi "no conversation found" /tmp/claude_stderr.log 2>/dev/null; then
+                echo "::notice::No existing session, starting fresh"
+                claude -p "$(cat /tmp/reviewer_prompt.md)" \
+                  --dangerously-skip-permissions \
+                  --output-format json \
+                  --max-turns 30 \
+                  --model sonnet \
+                  > /tmp/claude_output.json 2>/tmp/claude_stderr.log || {
+                    EXIT_CODE=$?
+                    echo "claude_failed=true" >> "$GITHUB_OUTPUT"
+                    echo "::error::Claude Code (reviewer) exited with code $EXIT_CODE"
+                    cat /tmp/claude_stderr.log
+                    exit 0
+                  }
+              else
+                echo "claude_failed=true" >> "$GITHUB_OUTPUT"
+                echo "::error::Claude Code (reviewer) exited with code $EXIT_CODE"
+                cat /tmp/claude_stderr.log
+                exit 0
+              fi
             }
           echo "claude_failed=false" >> "$GITHUB_OUTPUT"
 

@@ -35,6 +35,9 @@ on:
 jobs:
   orchestrate:
     runs-on: self-hosted
+    concurrency:
+      group: orchestrator-${{ inputs.item_node_id || inputs.issue_number }}
+      cancel-in-progress: false
     steps:
       - name: Determine trigger source
         id: trigger
