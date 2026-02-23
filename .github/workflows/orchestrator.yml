@@ -15,6 +15,11 @@ on:
         description: "Project node ID"
         type: string
         required: true
+      runner:
+        description: "Runner label for this workflow"
+        type: string
+        required: false
+        default: "self-hosted"
     secrets:
       WORKFLOW_PAT:
         description: "PAT with actions:write for cross-repo dispatch"
@@ -34,7 +39,7 @@ on:
 
 jobs:
   orchestrate:
-    runs-on: self-hosted
+    runs-on: ${{ inputs.runner || 'self-hosted' }}
     concurrency:
       group: orchestrator-${{ inputs.item_node_id || inputs.issue_number }}
       cancel-in-progress: false

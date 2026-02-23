@@ -27,6 +27,11 @@ on:
         type: string
         required: false
         default: ""
+      runner:
+        description: "Runner label for this workflow"
+        type: string
+        required: false
+        default: "agentic-developer"
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: "OAuth token for Claude Code CLI"
@@ -37,7 +42,7 @@ on:
 
 jobs:
   develop:
-    runs-on: agentic-developer
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 60
     concurrency:
       group: dev-issue-${{ inputs.issue_number }}
