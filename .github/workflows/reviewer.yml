@@ -276,12 +276,6 @@ jobs:
                 -f optionId="$OPTION_ID"
             fi
 
-            # Dispatch developer again
-            gh workflow run agentic-developer.yml \
-              --repo "${{ github.repository }}" \
-              -f issue_number="${{ inputs.issue_number }}" \
-              -f review_cycle="${NEXT_CYCLE}" \
-              -f max_review_cycles="${{ inputs.max_review_cycles }}" \
-              -f project_node_id="${{ inputs.project_node_id }}" \
-              -f item_node_id="${{ inputs.item_node_id }}"
+            # Status is now "Ready" — the board event will trigger the orchestrator,
+            # which will dispatch the developer for the next cycle.
           fi

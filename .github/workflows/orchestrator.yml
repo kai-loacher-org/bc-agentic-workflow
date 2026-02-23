@@ -53,7 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          # Verify the item is in "Ready" status
+          # Check item status — we handle "Ready" and "In review"
           CURRENT_STATUS=$(gh api graphql -f query='
             query($itemId: ID!) {
               node(id: $itemId) {
@@ -68,11 +68,13 @@ jobs:
             }' -f itemId="${{ inputs.item_node_id }}" \
             --jq '.data.node.fieldValueByName.name')
 
-          if [ "$CURRENT_STATUS" != "Ready" ]; then
-            echo "::notice::Item status is '$CURRENT_STATUS', not 'Ready'. Skipping."
+          if [ "$CURRENT_STATUS" != "Ready" ] && [ "$CURRENT_STATUS" != "In review" ]; then
+            echo "::notice::Item status is '$CURRENT_STATUS', not 'Ready' or 'In review'. Skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          echo "status=$CURRENT_STATUS" >> "$GITHUB_OUTPUT"
 
           # Get issue number and repository from content node
           ISSUE_DATA=$(gh api graphql -f query='
@@ -125,7 +127,7 @@ jobs:
           fi
 
       - name: Add review-cycle label
-        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && steps.issue_from_project.outputs.status == 'Ready'
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -147,7 +149,7 @@ jobs:
             --add-label "review-cycle:0"
 
       - name: Update project status to In Progress
-        if: steps.trigger.outputs.source == 'project' && steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        if: steps.trigger.outputs.source == 'project' && steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && steps.issue_from_project.outputs.status == 'Ready'
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -190,15 +192,67 @@ jobs:
             -f fieldId="$FIELD_ID" \
             -f optionId="$OPTION_ID"
 
-      - name: Dispatch developer workflow
+      - name: Get current review cycle
         if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        id: review_cycle
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract current review cycle from labels (default 0)
+          CYCLE=$(gh issue view "${{ steps.issue.outputs.number }}" \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            --json labels --jq '.labels[].name' | grep "^review-cycle:" | sed 's/review-cycle://' || echo "0")
+          if [ -z "$CYCLE" ]; then
+            CYCLE="0"
+          fi
+          echo "cycle=$CYCLE" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch developer workflow
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && (steps.issue_from_project.outputs.status == 'Ready' || steps.trigger.outputs.source == 'manual')
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
         run: |
           gh workflow run agentic-developer.yml \
             --repo "${{ steps.issue.outputs.repo }}" \
             -f issue_number="${{ steps.issue.outputs.number }}" \
-            -f review_cycle="0" \
+            -f review_cycle="${{ steps.review_cycle.outputs.cycle }}" \
+            -f max_review_cycles="3" \
+            -f project_node_id="${{ inputs.project_node_id || '' }}" \
+            -f item_node_id="${{ inputs.item_node_id || '' }}"
+
+      - name: Find PR for issue
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && steps.issue_from_project.outputs.status == 'In review'
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          # Find open PR that references this issue
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            --state open \
+            --json number,body \
+            --jq '.[] | select(.body | test("Ref #${{ steps.issue.outputs.number }}(\\s|$)")) | .number' \
+            | head -1)
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::warning::No open PR found for issue #${{ steps.issue.outputs.number }}. Skipping reviewer dispatch."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Found PR #$PR_NUMBER for issue #${{ steps.issue.outputs.number }}"
+          fi
+
+      - name: Dispatch reviewer workflow
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && steps.issue_from_project.outputs.status == 'In review' && steps.find_pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        run: |
+          gh workflow run agentic-reviewer.yml \
+            --repo "${{ steps.issue.outputs.repo }}" \
+            -f issue_number="${{ steps.issue.outputs.number }}" \
+            -f pr_number="${{ steps.find_pr.outputs.pr_number }}" \
+            -f review_cycle="${{ steps.review_cycle.outputs.cycle }}" \
             -f max_review_cycles="3" \
             -f project_node_id="${{ inputs.project_node_id || '' }}" \
             -f item_node_id="${{ inputs.item_node_id || '' }}"
