@@ -75,6 +75,7 @@ bc-agentic-workflow/
 │   └── .env.example                 # Runner environment template
 ├── config.yml                       # Organization-wide defaults
 ├── docs/plans/                      # Design docs and implementation plans
+├── HelloWorld.md                    # Proof-of-concept file created by the agentic pipeline
 └── Idea.md                          # Original project vision
 ```
 
