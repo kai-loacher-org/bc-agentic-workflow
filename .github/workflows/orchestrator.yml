@@ -170,10 +170,13 @@ jobs:
             }' -f projectId="${{ inputs.project_node_id }}" \
             --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
+          echo "::notice::FIELD_DATA=$FIELD_DATA"
+
           FIELD_ID_STR="$(echo "$FIELD_DATA" | jq -r '.id')"
           OPTION_ID_STR="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "In Progress") | .id')"
 
-          echo "::debug::FIELD_ID=$FIELD_ID_STR OPTION_ID=$OPTION_ID_STR"
+          echo "::notice::FIELD_ID=$FIELD_ID_STR"
+          echo "::notice::OPTION_ID=$OPTION_ID_STR"
 
           # Update status
           gh api graphql -f query='
