@@ -31,7 +31,7 @@ on:
         description: "Runner label"
         type: string
         required: false
-        default: "agentic-developer"
+        default: "self-hosted"
 
 permissions:
   contents: write
