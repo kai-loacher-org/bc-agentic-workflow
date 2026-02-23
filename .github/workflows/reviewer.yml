@@ -223,10 +223,8 @@ jobs:
               }' -f projectId="${{ inputs.project_node_id }}" \
               --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-            FIELD_ID_STR="$(echo "$FIELD_DATA" | jq -r '.id')"
-            OPTION_ID_STR="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')"
-
-            echo "::debug::FIELD_ID=$FIELD_ID_STR OPTION_ID=$OPTION_ID_STR"
+            FIELD_ID="$(echo "$FIELD_DATA" | jq -r '.id')"
+            OPTION_ID="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')"
 
             gh api graphql -f query='
               mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
@@ -241,8 +239,8 @@ jobs:
               }' \
               -f projectId="${{ inputs.project_node_id }}" \
               -f itemId="${{ inputs.item_node_id }}" \
-              -f fieldId="$FIELD_ID_STR" \
-              -f optionId="$OPTION_ID_STR"
+              -f fieldId="$FIELD_ID" \
+              -f optionId="$OPTION_ID"
           fi
 
           gh issue comment "${{ inputs.issue_number }}" \
@@ -294,10 +292,8 @@ jobs:
                 }' -f projectId="${{ inputs.project_node_id }}" \
                 --jq '.data.node.fields.nodes[] | select(.name == "Status")')
 
-              FIELD_ID_STR="$(echo "$FIELD_DATA" | jq -r '.id')"
-              OPTION_ID_STR="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Ready") | .id')"
-
-              echo "::debug::FIELD_ID=$FIELD_ID_STR OPTION_ID=$OPTION_ID_STR"
+              FIELD_ID="$(echo "$FIELD_DATA" | jq -r '.id')"
+              OPTION_ID="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Ready") | .id')"
 
               gh api graphql -f query='
                 mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
@@ -312,8 +308,8 @@ jobs:
                 }' \
                 -f projectId="${{ inputs.project_node_id }}" \
                 -f itemId="${{ inputs.item_node_id }}" \
-                -f fieldId="$FIELD_ID_STR" \
-                -f optionId="$OPTION_ID_STR"
+                -f fieldId="$FIELD_ID" \
+                -f optionId="$OPTION_ID"
             fi
 
             # Dispatch developer again
