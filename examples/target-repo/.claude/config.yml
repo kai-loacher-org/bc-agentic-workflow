@@ -1,0 +1,11 @@
+# Per-repo configuration for the agentic workflow.
+# Place this file at .claude/config.yml in your repository.
+
+# YOLO mode: When the reviewer approves, auto-merge the PR
+# and set the project status to "Done" without human review.
+yolo_mode: false
+
+# Dedicated branch: Use a fixed branch name instead of
+# per-issue branches (issue/<number>-<slug>).
+# Leave empty for the default per-issue branch behavior.
+dedicated_branch: ""

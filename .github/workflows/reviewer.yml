@@ -52,6 +52,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Read repo config
+        id: config
+        run: |
+          if [ -f ".claude/config.yml" ]; then
+            YOLO_MODE=$(grep '^yolo_mode:' .claude/config.yml | sed 's/yolo_mode://' | tr -d ' "'"'" | head -1)
+          fi
+          echo "yolo_mode=${YOLO_MODE:-false}" >> "$GITHUB_OUTPUT"
+
       - name: Post run link to issue
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
@@ -233,14 +241,61 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          echo "::notice::PR #${{ inputs.pr_number }} approved! Status stays on 'In review' for human review."
+          if [ "${{ steps.config.outputs.yolo_mode }}" = "true" ]; then
+            echo "::notice::YOLO mode — auto-merging PR #${{ inputs.pr_number }}"
 
-          # Status stays on "In review" — no project board update needed.
-          # The user will move to "Done" after merging the PR.
+            gh pr merge "${{ inputs.pr_number }}" --squash --delete-branch
 
-          gh issue comment "${{ inputs.issue_number }}" \
-            --repo "${{ github.repository }}" \
-            --body "**Reviewer Agent** (cycle ${{ inputs.review_cycle }}): PR #${{ inputs.pr_number }} approved. Please review and merge the PR, then move the issue to Done."
+            gh issue comment "${{ inputs.issue_number }}" \
+              --repo "${{ github.repository }}" \
+              --body "**Reviewer Agent** (cycle ${{ inputs.review_cycle }}): PR #${{ inputs.pr_number }} approved and auto-merged (YOLO mode)."
+
+            # Update project status to Done
+            if [ -n "${{ inputs.project_node_id }}" ]; then
+              FIELD_DATA=$(gh api graphql -f query='
+                query($projectId: ID!) {
+                  node(id: $projectId) {
+                    ... on ProjectV2 {
+                      fields(first: 20) {
+                        nodes {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options { id name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }' -f projectId="${{ inputs.project_node_id }}" \
+                --jq '.data.node.fields.nodes[] | select(.name == "Status")')
+
+              FIELD_ID="$(echo "$FIELD_DATA" | jq -r '.id')"
+              OPTION_ID="$(echo "$FIELD_DATA" | jq -r '.options[] | select(.name == "Done") | .id')"
+
+              gh api graphql -f query='
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }' \
+                -f projectId="${{ inputs.project_node_id }}" \
+                -f itemId="${{ inputs.item_node_id }}" \
+                -f fieldId="$FIELD_ID" \
+                -f optionId="$OPTION_ID"
+            fi
+          else
+            echo "::notice::PR #${{ inputs.pr_number }} approved! Status stays on 'In review' for human review."
+
+            gh issue comment "${{ inputs.issue_number }}" \
+              --repo "${{ github.repository }}" \
+              --body "**Reviewer Agent** (cycle ${{ inputs.review_cycle }}): PR #${{ inputs.pr_number }} approved. Please review and merge the PR, then move the issue to Done."
+          fi
 
       - name: Handle changes requested
         if: steps.decision.outputs.review_state == 'CHANGES_REQUESTED'

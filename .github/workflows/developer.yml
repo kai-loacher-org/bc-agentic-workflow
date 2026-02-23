@@ -48,6 +48,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Read repo config
+        id: config
+        run: |
+          if [ -f ".claude/config.yml" ]; then
+            DEDICATED_BRANCH=$(grep '^dedicated_branch:' .claude/config.yml | sed 's/dedicated_branch://' | tr -d ' "'"'" | head -1)
+          fi
+          echo "dedicated_branch=${DEDICATED_BRANCH:-}" >> "$GITHUB_OUTPUT"
+
       - name: Post run link to issue
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
@@ -69,9 +77,14 @@ jobs:
 
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
 
-          # Generate branch slug from title
-          SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9äöüß]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | head -c 50)
-          BRANCH="issue/${{ inputs.issue_number }}-${SLUG}"
+          # Determine branch name
+          DEDICATED="${{ steps.config.outputs.dedicated_branch }}"
+          if [ -n "$DEDICATED" ]; then
+            BRANCH="$DEDICATED"
+          else
+            SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9äöüß]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | head -c 50)
+            BRANCH="issue/${{ inputs.issue_number }}-${SLUG}"
+          fi
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
           # Save full context to files for prompt assembly
