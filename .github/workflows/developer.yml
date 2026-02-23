@@ -32,6 +32,11 @@ on:
         type: string
         required: false
         default: "self-hosted"
+      dedicated_branch:
+        description: "Dedicated branch name (empty = per-issue branches)"
+        type: string
+        required: false
+        default: ""
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: "OAuth token for Claude Code CLI"
@@ -45,8 +50,8 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 60
     concurrency:
-      group: dev-issue-${{ inputs.issue_number }}
-      cancel-in-progress: false
+      group: ${{ inputs.dedicated_branch != '' && format('dev-repo-{0}', github.repository) || format('dev-issue-{0}', inputs.issue_number) }}
+      cancel-in-progress: ${{ inputs.dedicated_branch == '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,7 +99,9 @@ jobs:
       - name: Read repo config
         id: config
         run: |
-          if [ -f ".claude/config.yml" ]; then
+          # Prefer workflow input; fall back to config file
+          DEDICATED_BRANCH="${{ inputs.dedicated_branch }}"
+          if [ -z "$DEDICATED_BRANCH" ] && [ -f ".claude/config.yml" ]; then
             DEDICATED_BRANCH=$(grep '^dedicated_branch:' .claude/config.yml | sed 's/dedicated_branch://' | tr -d ' "'"'" | head -1)
           fi
           echo "dedicated_branch=${DEDICATED_BRANCH:-}" >> "$GITHUB_OUTPUT"

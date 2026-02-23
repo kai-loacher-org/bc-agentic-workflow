@@ -32,6 +32,11 @@ on:
         type: string
         required: false
         default: "self-hosted"
+      dedicated_branch:
+        description: "Dedicated branch (empty = per-issue branches)"
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -49,4 +54,5 @@ jobs:
       project_node_id: ${{ inputs.project_node_id }}
       item_node_id: ${{ inputs.item_node_id }}
       runner: ${{ inputs.runner }}
+      dedicated_branch: ${{ inputs.dedicated_branch }}
     secrets: inherit

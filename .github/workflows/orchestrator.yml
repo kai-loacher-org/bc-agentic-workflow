@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'self-hosted' }}
     concurrency:
       group: orchestrator-${{ inputs.item_node_id || inputs.issue_number }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - name: Determine trigger source
         id: trigger
@@ -215,6 +215,20 @@ jobs:
           fi
           echo "cycle=$CYCLE" >> "$GITHUB_OUTPUT"
 
+      - name: Read target repo config
+        if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true'
+        id: repo_config
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          CONFIG=$(gh api "repos/${{ steps.issue.outputs.repo }}/contents/.claude/config.yml" \
+            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+          DEDICATED_BRANCH=""
+          if [ -n "$CONFIG" ]; then
+            DEDICATED_BRANCH=$(echo "$CONFIG" | grep '^dedicated_branch:' | sed 's/dedicated_branch://' | tr -d ' "'"'" | head -1)
+          fi
+          echo "dedicated_branch=${DEDICATED_BRANCH:-}" >> "$GITHUB_OUTPUT"
+
       - name: Dispatch developer workflow
         if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && (steps.issue_from_project.outputs.status == 'Ready' || steps.trigger.outputs.source == 'manual')
         env:
@@ -226,7 +240,8 @@ jobs:
             -f review_cycle="${{ steps.review_cycle.outputs.cycle }}" \
             -f max_review_cycles="3" \
             -f project_node_id="${{ inputs.project_node_id || '' }}" \
-            -f item_node_id="${{ inputs.item_node_id || '' }}"
+            -f item_node_id="${{ inputs.item_node_id || '' }}" \
+            -f dedicated_branch="${{ steps.repo_config.outputs.dedicated_branch }}"
 
       - name: Find PR for issue
         if: steps.issue_from_project.outputs.skip != 'true' && steps.check_failed.outputs.skip != 'true' && steps.issue_from_project.outputs.status == 'In review'
