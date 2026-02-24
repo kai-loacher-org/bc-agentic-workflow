@@ -15,7 +15,7 @@ set -euo pipefail
 # Uses grep instead of jq to avoid external dependencies.
 input=$(cat)
 
-if echo "$input" | grep -q '"agent_type"'; then
+if echo "$input" | grep -qE '"agent_type"\s*:\s*"[^"]+"'; then
   # An agent is already set via --agent — skip, the agent loads its own context
   exit 0
 fi
