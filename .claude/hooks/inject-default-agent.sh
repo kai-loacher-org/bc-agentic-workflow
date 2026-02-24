@@ -11,14 +11,12 @@
 
 set -euo pipefail
 
-# Read JSON input from stdin
+# Read JSON input from stdin and check if an agent was explicitly specified.
+# Uses grep instead of jq to avoid external dependencies.
 input=$(cat)
 
-# Check if an agent was explicitly specified via --agent
-agent_type=$(echo "$input" | jq -r '.agent_type // empty')
-
-# If an agent is already set, skip — the agent loads its own context
-if [ -n "$agent_type" ]; then
+if echo "$input" | grep -q '"agent_type"'; then
+  # An agent is already set via --agent — skip, the agent loads its own context
   exit 0
 fi
 
