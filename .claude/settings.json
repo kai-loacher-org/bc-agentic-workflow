@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; sed -i \"s/\\r//\" \"$root/.claude/hooks/\"*.sh 2>/dev/null; bash \"$root/.claude/hooks/inject-default-agent.sh\"'"
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; sed -i.bak \"s/\\r//\" \"$root/.claude/hooks/\"*.sh 2>/dev/null; rm -f \"$root/.claude/hooks/\"*.sh.bak 2>/dev/null; bash \"$root/.claude/hooks/inject-default-agent.sh\"'"
           },
           {
             "type": "command",
