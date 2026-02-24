@@ -179,8 +179,8 @@ your-repo/
 
 **Steps:**
 
-1. Copy `examples/target-repo/github/workflows/` to `.github/workflows/` in your repo
-2. Copy `examples/target-repo/.claude/` to `.claude/` in your repo
+1. Copy `examples/target-repo/.gitattributes` and `examples/target-repo/.claude/` to your repo root
+2. Copy `examples/target-repo/github/workflows/` to `.github/workflows/`
 3. Replace `OWNER/bc-agentic-workflow` with your org's actual path in both workflow files
 4. **Customize `Tools & Commands`** in `.claude/agents/developer.md` and `.claude/agents/reviewer.md` with your repo's actual test, lint, and build commands
 5. Optionally adjust `.claude/config.yml` (see [Configuration](#configuration))

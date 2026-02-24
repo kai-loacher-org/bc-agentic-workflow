@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/inject-default-agent.sh"
+            "command": "sed -i 's/\\r$//' .claude/hooks/*.sh 2>/dev/null; bash .claude/hooks/inject-default-agent.sh"
           },
           {
             "type": "command",
