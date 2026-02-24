@@ -34,6 +34,11 @@ on:
         type: string
         required: false
         default: ""
+      runner:
+        description: "Runner label"
+        type: string
+        required: false
+        default: "self-hosted"
 
 permissions:
   contents: write
@@ -51,4 +56,5 @@ jobs:
       max_review_cycles: ${{ inputs.max_review_cycles }}
       project_node_id: ${{ inputs.project_node_id }}
       item_node_id: ${{ inputs.item_node_id }}
+      runner: ${{ inputs.runner }}
     secrets: inherit

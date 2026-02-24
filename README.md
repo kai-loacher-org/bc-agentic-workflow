@@ -201,10 +201,12 @@ For each repo that should use the agentic workflow:
 
 2. Create agent configuration:
    ```
-   .claude/agents/developer/IDENTITY.md
-   .claude/agents/developer/TOOLS.md     # Customize with repo-specific commands!
-   .claude/agents/developer/MEMORY.md
+   .claude/agents/developer/SYSTEM.md     # Bootstrap + instructions (system prompt)
+   .claude/agents/developer/IDENTITY.md   # Agent personality and principles
+   .claude/agents/developer/TOOLS.md      # Customize with repo-specific commands!
+   .claude/agents/developer/MEMORY.md     # Persistent learnings
    .claude/agents/developer/logs/.gitkeep
+   .claude/agents/reviewer/SYSTEM.md
    .claude/agents/reviewer/IDENTITY.md
    .claude/agents/reviewer/TOOLS.md
    .claude/agents/reviewer/MEMORY.md
@@ -215,12 +217,12 @@ For each repo that should use the agentic workflow:
 
 ## Configuration
 
-`config.yml` controls organization-wide defaults:
+`config.yml` controls organization-wide defaults. Each target repo can override these by placing a `.claude/config.yml` in its root.
 
 ```yaml
 max_review_cycles: 3                    # Max re-work attempts before escalation
-branch_pattern: "issue/{number}-{slug}" # Branch naming convention
-pr_auto_close_issue: true               # PR links auto-close the issue
+yolo_mode: false                        # Auto-merge on approval (no human review)
+dedicated_branch: ""                    # Fixed branch name (empty = per-issue branches)
 runners:
   orchestrator: "self-hosted"
   developer: "agentic-developer"
@@ -256,6 +258,9 @@ This loads the agent's bootstrap instructions (identity, tools, memory) into the
 
 - **Reusable Workflows** — Core logic lives in this repo, adopted via `workflow_call`
 - **Cloudflare Worker Relay** — Bridges the gap between GitHub webhooks and Actions triggers
-- **No auto-merge** — Users always manually review and merge the final PR
+- **No auto-merge by default** — Users review and merge the final PR (unless `yolo_mode: true`)
 - **Agent config per repo** — Each repo defines its own agent identity, tools, and memory
-- **Daily logs** — Agents write daily logs to maintain context across sessions
+- **SYSTEM.md as system prompt** — Agent bootstrap loaded via `--append-system-prompt-file`, keeping task prompts clean
+- **Session persistence** — Deterministic UUIDs allow agents to resume context across review cycles
+- **Self-improving agents** — Agents read/write their own MEMORY.md and logs for cross-session learning
+- **Cloud + self-hosted runners** — Prerequisites step auto-installs missing tools for portability
