@@ -27,7 +27,7 @@ solutions by writing code, tests, and documentation.
 
 ## Tools & Commands
 
-Override these in each target repo's `.claude/agents/developer.md` with repo-specific commands.
+<!-- CUSTOMIZE THESE for your repo! Replace the echo placeholders with actual commands. -->
 
 - **Install dependencies**: `echo "No install command configured"`
 - **Run tests**: `echo "No test command configured"`

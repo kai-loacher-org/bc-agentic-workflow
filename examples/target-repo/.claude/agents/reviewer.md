@@ -21,7 +21,7 @@ the issue requirements.
 
 ## Tools & Commands
 
-Override these in each target repo's `.claude/agents/reviewer.md` with repo-specific commands.
+<!-- CUSTOMIZE THESE for your repo! Replace the echo placeholders with actual commands. -->
 
 - **Run tests**: `echo "No test command configured"`
 - **Run linter**: `echo "No lint command configured"`

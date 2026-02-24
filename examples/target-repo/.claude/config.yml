@@ -13,3 +13,6 @@ yolo_mode: false
 # per-issue branches (issue/<number>-<slug>).
 # Leave empty for the default per-issue branch behavior.
 dedicated_branch: ""
+
+# Number of recent activity log files injected at session start.
+recent_logs_count: 3

@@ -209,6 +209,7 @@ For each repo that should use the agentic workflow:
 max_review_cycles: 3                    # Max re-work attempts before escalation
 yolo_mode: false                        # Auto-merge on approval (no human review)
 dedicated_branch: ""                    # Fixed branch name (empty = per-issue branches)
+recent_logs_count: 3                    # Number of recent activity logs injected at session start
 runners:
   orchestrator: "self-hosted"
   developer: "agentic-developer"
