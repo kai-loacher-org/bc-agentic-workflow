@@ -11,6 +11,10 @@
 
 set -euo pipefail
 
+# Navigate to git repo root so relative paths work even when Claude is opened in a subdirectory
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$repo_root"
+
 LOGS_DIR=".claude/agent-memory/logs"
 DEFAULT_COUNT=3
 

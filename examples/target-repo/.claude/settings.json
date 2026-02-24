@@ -6,11 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sed -i 's/\\r$//' .claude/hooks/*.sh 2>/dev/null; bash .claude/hooks/inject-default-agent.sh"
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; sed -i \"s/\\r//\" \"$root/.claude/hooks/\"*.sh 2>/dev/null; bash \"$root/.claude/hooks/inject-default-agent.sh\"'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/inject-recent-logs.sh"
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.claude/hooks/inject-recent-logs.sh\"'"
           }
         ]
       }

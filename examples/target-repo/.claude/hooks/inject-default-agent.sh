@@ -11,6 +11,10 @@
 
 set -euo pipefail
 
+# Navigate to git repo root so relative paths work even when Claude is opened in a subdirectory
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$repo_root"
+
 # Read JSON input from stdin and check if an agent was explicitly specified.
 # Uses grep instead of jq to avoid external dependencies.
 input=$(cat)
