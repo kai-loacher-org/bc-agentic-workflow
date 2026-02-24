@@ -8,6 +8,7 @@ max_review_cycles: 3
 yolo_mode: false
 dedicated_branch: ""
 recent_logs_count: 3
+default_agent: developer
 
 # Runner labels (configured in the reusable workflows, not per-repo)
 runners:

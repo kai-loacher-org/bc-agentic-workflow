@@ -16,3 +16,7 @@ dedicated_branch: ""
 
 # Number of recent activity log files injected at session start.
 recent_logs_count: 3
+
+# Default agent loaded in normal sessions (without --agent flag).
+# Set to the agent name matching a file in .claude/agents/<name>.md.
+default_agent: developer

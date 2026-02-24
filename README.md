@@ -171,6 +171,7 @@ your-repo/
     │   ├── reviewer/.gitkeep         # Rick's persistent memory (auto-managed)
     │   └── logs/.gitkeep             # Shared activity logs (auto-managed)
     ├── hooks/
+    │   ├── inject-default-agent.sh   # SessionStart hook — loads default agent in normal sessions
     │   └── inject-recent-logs.sh     # SessionStart hook — injects recent activity logs
     ├── settings.json                 # Claude Code project settings (hooks registration)
     └── config.yml                    # Per-repo configuration overrides (optional)
@@ -201,9 +202,15 @@ Or as the Reviewer agent:
 claude --agent reviewer
 ```
 
-This uses Claude Code's native agent system — the agent's identity, tools, and
-persistent memory are loaded automatically. Recent activity logs are injected
-at session start via the SessionStart hook.
+Using `--agent` is the **recommended** approach — it loads the agent as a system prompt
+with full native support (model, memory, identity). This gives the agent instructions
+the highest priority in Claude's context.
+
+For convenience, normal sessions (e.g. VS Code extension or just `claude` without flags)
+automatically inject the default agent context via a SessionStart hook. This ensures the
+agent context is always present, even if you forget the `--agent` flag. The default agent
+is configurable via `default_agent` in `.claude/config.yml` (defaults to `developer`).
+Note that hook-injected context has lower priority than native `--agent` loading.
 
 ---
 
@@ -216,6 +223,7 @@ max_review_cycles: 3                    # Max re-work attempts before escalation
 yolo_mode: false                        # Auto-merge on approval (no human review)
 dedicated_branch: ""                    # Fixed branch name (empty = per-issue branches)
 recent_logs_count: 3                    # Number of recent activity logs injected at session start
+default_agent: developer                # Agent loaded in normal sessions (without --agent)
 ```
 
 Organization-wide defaults are documented in `config.yml` at the root of this repo.
@@ -282,7 +290,8 @@ bc-agentic-workflow/
 │   │   ├── reviewer/                # Reviewer's persistent memory (auto-managed)
 │   │   └── logs/                    # Shared activity logs (auto-managed)
 │   ├── hooks/
-│   │   └── inject-recent-logs.sh    # SessionStart hook
+│   │   ├── inject-default-agent.sh  # Default agent hook
+│   │   └── inject-recent-logs.sh    # Activity logs hook
 │   └── settings.json                # Hook registration
 ├── webhook-relay/                   # Cloudflare Worker (webhook relay)
 │   ├── src/index.js
