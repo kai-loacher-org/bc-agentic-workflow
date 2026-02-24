@@ -11,7 +11,10 @@
 
 set -euo pipefail
 
-# Navigate to git repo root so relative paths work even when Claude is opened in a subdirectory
+# Save the project directory (where Claude was launched) for memory lookup
+project_dir=$(pwd)
+
+# Navigate to git repo root to find centrally stored agent definitions
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$repo_root"
 
@@ -47,8 +50,8 @@ echo ""
 # Strip YAML frontmatter (between --- markers) and output the body
 sed -n '/^---$/,/^---$/!p' "$agent_file"
 
-# Inject the agent's persistent memory (mirrors native --agent behavior)
-memory_file=".claude/agent-memory/${default_agent}/MEMORY.md"
+# Inject the agent's persistent memory from the project directory (not repo root)
+memory_file="${project_dir}/.claude/agent-memory/${default_agent}/MEMORY.md"
 if [ -f "$memory_file" ]; then
   echo ""
   echo "## Agent Memory (${default_agent})"
