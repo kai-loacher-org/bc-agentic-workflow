@@ -4,6 +4,224 @@ An automated development workflow where AI agents (Claude Code) autonomously
 process GitHub Issues. Issues move through a Kanban board (GitHub Projects V2)
 and are handled by three agent roles: Orchestrator, Developer, and Reviewer.
 
+## Table of Contents
+
+- [Quick Start: Full Setup](#quick-start-full-setup)
+  - [Prerequisites](#prerequisites)
+  - [1. Fork or Clone This Repo](#1-fork-or-clone-this-repo)
+  - [2. Organization Secrets](#2-organization-secrets)
+  - [3. Self-Hosted Runners](#3-self-hosted-runners)
+  - [4. Webhook Relay (Cloudflare Worker)](#4-webhook-relay-cloudflare-worker)
+  - [5. Organization `.github` Repository](#5-organization-github-repository)
+  - [6. Add Your First Target Repo](#6-add-your-first-target-repo)
+- [Adding a New Repository](#adding-a-new-repository)
+- [Local Development](#local-development)
+- [Configuration](#configuration)
+- [How It Works](#how-it-works)
+- [Project Structure](#project-structure)
+- [Labels](#labels)
+- [Architecture Decisions](#architecture-decisions)
+
+---
+
+## Quick Start: Full Setup
+
+Follow these steps to set up the entire system from scratch for your GitHub organization.
+
+### Prerequisites
+
+- A GitHub organization
+- A GitHub Projects V2 board with status columns: **Backlog**, **Ready**, **In Progress**, **In Review**, **Done**
+- A machine for self-hosted runners (e.g. a mini PC or cloud VM)
+- A Cloudflare account (free tier is sufficient)
+- Claude Code CLI installed on the runner machine
+
+### 1. Fork or Clone This Repo
+
+Create a copy of this repo in your organization (e.g. `your-org/bc-agentic-workflow`). This is the central repo that holds all reusable workflows, agent definitions, and the webhook relay.
+
+### 2. Organization Secrets
+
+Set these as organization-level secrets (Settings > Secrets and variables > Actions):
+
+| Secret | Description |
+|--------|-------------|
+| `CLAUDE_CODE_OAUTH_TOKEN` | Run `claude setup-token` locally to generate a 1-year OAuth token from your Claude Max subscription |
+| `WORKFLOW_PAT` | A fine-grained PAT with scopes: `actions:write`, `issues:write`, `contents:write`, `pull-requests:write` |
+
+### 3. Self-Hosted Runners
+
+Set up two runners on your machine with these labels:
+
+- `agentic-developer` — for the Developer agent
+- `agentic-reviewer` — for the Reviewer agent
+
+Each runner needs:
+
+```bash
+# Install Claude Code CLI
+claude --version
+
+# Ensure onboarding is complete
+echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+
+# Install jq (required by orchestrator)
+sudo apt-get install -y jq
+```
+
+### 4. Webhook Relay (Cloudflare Worker)
+
+GitHub Projects V2 does not support `projects_v2_item` as a GitHub Actions
+workflow trigger. We use a Cloudflare Worker to relay webhook events as
+`repository_dispatch` events that GitHub Actions can process.
+
+**Deploy the Worker:**
+
+```bash
+cd webhook-relay
+npm install
+npx wrangler deploy
+```
+
+On first run, Wrangler will ask you to log in to your Cloudflare account via
+the browser. After deploy, you get a URL like:
+`https://github-webhook-relay.<your-account>.workers.dev`
+
+**Set Worker Secrets:**
+
+```bash
+# A strong random string (save it — you need the same value for the GitHub webhook)
+npx wrangler secret put WEBHOOK_SECRET
+
+# The same PAT used as WORKFLOW_PAT in GitHub org secrets
+npx wrangler secret put GITHUB_PAT
+```
+
+**Configure the GitHub Org Webhook:**
+
+Go to `https://github.com/organizations/<your-org>/settings/hooks` and add a
+new webhook:
+
+| Setting | Value |
+|---------|-------|
+| Payload URL | Your Worker URL (e.g. `https://github-webhook-relay.<account>.workers.dev`) |
+| Content type | `application/json` (must be JSON, not form-encoded) |
+| Secret | The same value you entered as `WEBHOOK_SECRET` |
+| Events | Select "Let me select individual events" > check only **"Projects v2 item"** |
+| Active | checked |
+
+### 5. Organization `.github` Repository
+
+Create a repo named `.github` in your org (e.g. `your-org/.github`). This is a
+special GitHub repo that receives organization-level dispatch events.
+
+Add the trigger workflow at `.github/workflows/orchestrator-trigger.yml`
+(see `examples/dot-github-repo/` for the template):
+
+```yaml
+name: Project Board Trigger
+
+on:
+  repository_dispatch:
+    types: [projects_v2_item]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  orchestrate:
+    if: >-
+      github.event.client_payload.projects_v2_item.content_type == 'Issue' &&
+      github.event.client_payload.changes.field_value.field_type == 'single_select'
+    uses: your-org/bc-agentic-workflow/.github/workflows/orchestrator.yml@main
+    with:
+      item_node_id: ${{ github.event.client_payload.projects_v2_item.node_id }}
+      content_node_id: ${{ github.event.client_payload.projects_v2_item.content_node_id }}
+      project_node_id: ${{ github.event.client_payload.projects_v2_item.project_node_id }}
+    secrets: inherit
+```
+
+Replace `your-org` with your actual GitHub organization name.
+
+### 6. Add Your First Target Repo
+
+See the next section.
+
+---
+
+## Adding a New Repository
+
+For each repo that should use the agentic workflow, copy the full template from
+`examples/target-repo/`. Here's what goes into the target repo:
+
+```
+your-repo/
+├── .github/workflows/
+│   ├── agentic-developer.yml         # Wrapper workflow (calls reusable developer.yml)
+│   └── agentic-reviewer.yml          # Wrapper workflow (calls reusable reviewer.yml)
+└── .claude/
+    ├── agents/
+    │   ├── developer.md              # Developer agent (Dave) — CUSTOMIZE Tools & Commands!
+    │   └── reviewer.md               # Reviewer agent (Rick) — CUSTOMIZE Tools & Commands!
+    ├── agent-memory/
+    │   ├── developer/.gitkeep        # Dave's persistent memory (auto-managed)
+    │   ├── reviewer/.gitkeep         # Rick's persistent memory (auto-managed)
+    │   └── logs/.gitkeep             # Shared activity logs (auto-managed)
+    ├── hooks/
+    │   └── inject-recent-logs.sh     # SessionStart hook — injects recent activity logs
+    ├── settings.json                 # Claude Code project settings (hooks registration)
+    └── config.yml                    # Per-repo configuration overrides (optional)
+```
+
+**Steps:**
+
+1. Copy `examples/target-repo/github/workflows/` to `.github/workflows/` in your repo
+2. Copy `examples/target-repo/.claude/` to `.claude/` in your repo
+3. Replace `OWNER/bc-agentic-workflow` with your org's actual path in both workflow files
+4. **Customize `Tools & Commands`** in `.claude/agents/developer.md` and `.claude/agents/reviewer.md` with your repo's actual test, lint, and build commands
+5. Optionally adjust `.claude/config.yml` (see [Configuration](#configuration))
+6. Connect the repo to your GitHub Projects V2 board
+
+---
+
+## Local Development
+
+Start a local interactive Claude session as the Developer agent:
+
+```bash
+claude --agent developer
+```
+
+Or as the Reviewer agent:
+
+```bash
+claude --agent reviewer
+```
+
+This uses Claude Code's native agent system — the agent's identity, tools, and
+persistent memory are loaded automatically. Recent activity logs are injected
+at session start via the SessionStart hook.
+
+---
+
+## Configuration
+
+Each target repo can override organization defaults by placing a `.claude/config.yml` in its root.
+
+```yaml
+max_review_cycles: 3                    # Max re-work attempts before escalation
+yolo_mode: false                        # Auto-merge on approval (no human review)
+dedicated_branch: ""                    # Fixed branch name (empty = per-issue branches)
+recent_logs_count: 3                    # Number of recent activity logs injected at session start
+```
+
+Organization-wide defaults are documented in `config.yml` at the root of this repo.
+
+---
+
 ## How It Works
 
 1. You create a GitHub Issue and move it to "Ready" on your project board
@@ -42,6 +260,8 @@ Reviewer (agentic-reviewer runner)
   MAX      --> adds needs-human-review label
 ```
 
+---
+
 ## Project Structure
 
 ```
@@ -55,199 +275,49 @@ bc-agentic-workflow/
 │   └── project-board-trigger.yml    # Template for .github repo trigger
 ├── .claude/
 │   ├── agents/
-│   │   ├── developer.md             # Developer agent (Dave) — native Claude Code format
-│   │   └── reviewer.md              # Reviewer agent (Rick) — native Claude Code format
-│   └── agent-memory/
-│       ├── developer/               # Developer's persistent memory (auto-managed)
-│       └── reviewer/                # Reviewer's persistent memory (auto-managed)
+│   │   ├── developer.md             # Developer agent (Dave)
+│   │   └── reviewer.md              # Reviewer agent (Rick)
+│   ├── agent-memory/
+│   │   ├── developer/               # Developer's persistent memory (auto-managed)
+│   │   ├── reviewer/                # Reviewer's persistent memory (auto-managed)
+│   │   └── logs/                    # Shared activity logs (auto-managed)
+│   ├── hooks/
+│   │   └── inject-recent-logs.sh    # SessionStart hook
+│   └── settings.json                # Hook registration
 ├── webhook-relay/                   # Cloudflare Worker (webhook relay)
-│   ├── src/index.js                 # Worker source code
-│   ├── wrangler.toml                # Cloudflare Worker config
+│   ├── src/index.js
+│   ├── wrangler.toml
 │   └── package.json
 ├── examples/
-│   ├── target-repo/                 # Template for adopting repos
+│   ├── target-repo/                 # Full template for adopting repos
 │   └── dot-github-repo/             # Template for org .github repo
-├── runners/
-│   └── .env.example                 # Runner environment template
 ├── config.yml                       # Organization-wide defaults
-├── docs/plans/                      # Design docs and implementation plans
-└── Idea.md                          # Original project vision
+└── runners/
+    └── .env.example                 # Runner environment template
 ```
 
-## Setup Guide
-
-### Prerequisites
-
-- A GitHub organization
-- A GitHub Projects V2 board with status columns (Backlog, Ready, In Progress, In Review, Done)
-- A machine for self-hosted runners (e.g. a mini PC)
-- A Cloudflare account (free tier is sufficient)
-- Claude Code CLI installed on the runner machine
-
-### 1. Organization Secrets
-
-Set these as organization-level secrets (Settings > Secrets and variables > Actions):
-
-- **`CLAUDE_CODE_OAUTH_TOKEN`** — Run `claude setup-token` locally to generate a 1-year OAuth token from your Claude Max subscription
-- **`WORKFLOW_PAT`** — A fine-grained Personal Access Token with scopes: `actions:write`, `issues:write`, `contents:write`, `pull-requests:write`
-
-### 2. Self-Hosted Runners
-
-Set up runners on your machine with these labels:
-
-- `agentic-developer` — for the Developer agent
-- `agentic-reviewer` — for the Reviewer agent
-
-Each runner needs:
-
-```bash
-# Install Claude Code CLI
-claude --version
-
-# Ensure onboarding is complete
-echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
-
-# Install jq (required by orchestrator)
-sudo apt-get install -y jq
-```
-
-### 3. Webhook Relay (Cloudflare Worker)
-
-GitHub Projects V2 does not support `projects_v2_item` as a GitHub Actions
-workflow trigger. We use a Cloudflare Worker to relay webhook events as
-`repository_dispatch` events that GitHub Actions can process.
-
-#### Deploy the Worker
-
-```bash
-cd webhook-relay
-npm install
-npx wrangler deploy
-```
-
-On first run, Wrangler will ask you to log in to your Cloudflare account via
-the browser. After deploy, you get a URL like:
-`https://github-webhook-relay.<your-account>.workers.dev`
-
-#### Set Worker Secrets
-
-```bash
-# A strong random string (save it — you need the same value for the GitHub webhook)
-npx wrangler secret put WEBHOOK_SECRET
-
-# The same PAT used as WORKFLOW_PAT in GitHub org secrets
-npx wrangler secret put GITHUB_PAT
-```
-
-#### Configure the GitHub Org Webhook
-
-Go to `https://github.com/organizations/<your-org>/settings/hooks` and add a
-new webhook:
-
-- **Payload URL**: Your Worker URL (e.g. `https://github-webhook-relay.<account>.workers.dev`)
-- **Content type**: `application/json` (important — must be JSON, not form-encoded)
-- **Secret**: The same value you entered as `WEBHOOK_SECRET`
-- **Events**: Select "Let me select individual events" > check only **"Projects v2 item"**
-- **Active**: checked
-
-### 4. Organization `.github` Repository
-
-Create a repo named `.github` in your org (e.g. `your-org/.github`). This is a
-special GitHub repo that receives organization-level events.
-
-Add the trigger workflow at `.github/workflows/orchestrator-trigger.yml`:
-
-```yaml
-name: Project Board Trigger
-
-on:
-  repository_dispatch:
-    types: [projects_v2_item]
-
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: write
-
-jobs:
-  orchestrate:
-    if: >-
-      github.event.client_payload.projects_v2_item.content_type == 'Issue' &&
-      github.event.client_payload.changes.field_value.field_type == 'single_select'
-    uses: your-org/bc-agentic-workflow/.github/workflows/orchestrator.yml@main
-    with:
-      item_node_id: ${{ github.event.client_payload.projects_v2_item.node_id }}
-      content_node_id: ${{ github.event.client_payload.projects_v2_item.content_node_id }}
-      project_node_id: ${{ github.event.client_payload.projects_v2_item.project_node_id }}
-    secrets: inherit
-```
-
-Replace `your-org` with your actual GitHub organization name.
-
-### 5. Adopting in Target Repositories
-
-For each repo that should use the agentic workflow:
-
-1. Copy the wrapper workflows from `examples/target-repo/`:
-   - `.github/workflows/agentic-developer.yml`
-   - `.github/workflows/agentic-reviewer.yml`
-
-2. Create agent definitions (copy from this repo and customize the Tools & Commands section):
-   ```
-   .claude/agents/developer.md    # Developer agent — customize tools for your repo!
-   .claude/agents/reviewer.md     # Reviewer agent — customize tools for your repo!
-   ```
-
-3. Connect the repo to your GitHub Projects V2 board
-
-## Configuration
-
-`config.yml` controls organization-wide defaults. Each target repo can override these by placing a `.claude/config.yml` in its root.
-
-```yaml
-max_review_cycles: 3                    # Max re-work attempts before escalation
-yolo_mode: false                        # Auto-merge on approval (no human review)
-dedicated_branch: ""                    # Fixed branch name (empty = per-issue branches)
-recent_logs_count: 3                    # Number of recent activity logs injected at session start
-runners:
-  orchestrator: "self-hosted"
-  developer: "agentic-developer"
-  reviewer: "agentic-reviewer"
-```
+---
 
 ## Labels
 
 The system uses these labels automatically:
 
-- **`review-cycle:N`** — Tracks re-work iterations (0, 1, 2...)
-- **`agent-error`** — First failure, can retry
-- **`agent-failed`** — Second consecutive failure, stops processing
-- **`needs-human-review`** — Max review cycles reached, manual intervention needed
+| Label | Description |
+|-------|-------------|
+| `review-cycle:N` | Tracks re-work iterations (0, 1, 2...) |
+| `agent-error` | First failure, can retry |
+| `agent-failed` | Second consecutive failure, stops processing |
+| `needs-human-review` | Max review cycles reached, manual intervention needed |
 
-## Local Development with Claude Code
-
-Start a local interactive Claude session as the Developer agent:
-
-```bash
-claude --agent developer
-```
-
-Or as the Reviewer agent:
-
-```bash
-claude --agent reviewer
-```
-
-This uses Claude Code's native agent system — the agent's identity, tools, and persistent memory are loaded automatically.
+---
 
 ## Architecture Decisions
 
 - **Reusable Workflows** — Core logic lives in this repo, adopted via `workflow_call`
 - **Cloudflare Worker Relay** — Bridges the gap between GitHub webhooks and Actions triggers
 - **No auto-merge by default** — Users review and merge the final PR (unless `yolo_mode: true`)
-- **Agent config per repo** — Each repo defines its own agent identity, tools, and memory
 - **Native Claude Code agents** — Agents defined as `.md` files with YAML frontmatter, invoked via `--agent`
+- **Agent config per repo** — Each repo defines its own agent identity, tools, and memory
 - **Session persistence** — Deterministic UUIDs allow agents to resume context across review cycles
-- **Self-improving agents** — Agents use Claude Code's native persistent memory (`agent-memory/`)
+- **Self-improving agents** — Agents use Claude Code's native persistent memory (`agent-memory/`) and shared activity logs
 - **Cloud + self-hosted runners** — Prerequisites step auto-installs missing tools for portability
