@@ -32,14 +32,8 @@ Pick a test repo in `kai-loacher-org` (or create one).
 - [ ] Copy `examples/target-repo/github/workflows/agentic-developer.yml` to `TARGET_REPO/.github/workflows/agentic-developer.yml`
 - [ ] Copy `examples/target-repo/github/workflows/agentic-reviewer.yml` to `TARGET_REPO/.github/workflows/agentic-reviewer.yml`
 - [ ] In both files, replace `OWNER/bc-agentic-workflow` with `kai-loacher-org/bc-agentic-workflow`
-- [ ] Create `.claude/agents/developer/IDENTITY.md` in target repo (copy defaults or customize)
-- [ ] Create `.claude/agents/developer/TOOLS.md` in target repo (customize build/test/lint commands!)
-- [ ] Create `.claude/agents/developer/MEMORY.md` in target repo
-- [ ] Create `.claude/agents/developer/logs/.gitkeep` in target repo
-- [ ] Create `.claude/agents/reviewer/IDENTITY.md` in target repo
-- [ ] Create `.claude/agents/reviewer/TOOLS.md` in target repo
-- [ ] Create `.claude/agents/reviewer/MEMORY.md` in target repo
-- [ ] Create `.claude/agents/reviewer/logs/.gitkeep` in target repo
+- [ ] Copy `.claude/agents/developer.md` to target repo (customize Tools & Commands section!)
+- [ ] Copy `.claude/agents/reviewer.md` to target repo (customize Tools & Commands section!)
 - [ ] Push all files to target repo `main` branch
 - [ ] Verify both workflows appear in target repo's Actions tab
 
