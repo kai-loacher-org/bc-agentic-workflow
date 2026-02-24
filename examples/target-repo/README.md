@@ -12,17 +12,11 @@ To enable the agentic workflow in your repository:
    dedicated_branch: ""   # fixed branch (empty = per-issue)
    ```
 
-5. Create agent config directories:
+5. Create agent definitions (customize the Tools & Commands section for your repo!):
 
    ```
-   .claude/agents/developer/IDENTITY.md
-   .claude/agents/developer/TOOLS.md  (customize for your repo!)
-   .claude/agents/developer/MEMORY.md
-   .claude/agents/developer/logs/.gitkeep
-   .claude/agents/reviewer/IDENTITY.md
-   .claude/agents/reviewer/TOOLS.md
-   .claude/agents/reviewer/MEMORY.md
-   .claude/agents/reviewer/logs/.gitkeep
+   .claude/agents/developer.md   # Copy from bc-agentic-workflow, customize tools
+   .claude/agents/reviewer.md    # Copy from bc-agentic-workflow, customize tools
    ```
 
 6. Ensure these org-level secrets exist:

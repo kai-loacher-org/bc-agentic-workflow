@@ -53,19 +53,13 @@ bc-agentic-workflow/
 │   ├── agentic-developer.yml        # Developer wrapper for target repos
 │   ├── agentic-reviewer.yml         # Reviewer wrapper for target repos
 │   └── project-board-trigger.yml    # Template for .github repo trigger
-├── .claude/agents/
-│   ├── developer/                   # Default developer agent config
-│   │   ├── SYSTEM.md                # System prompt (bootstrap + instructions)
-│   │   ├── IDENTITY.md              # Agent personality and principles
-│   │   ├── TOOLS.md                 # Build/test/lint commands
-│   │   ├── MEMORY.md                # Persistent learnings
-│   │   └── logs/                    # Daily activity logs
-│   └── reviewer/                    # Default reviewer agent config
-│       ├── SYSTEM.md
-│       ├── IDENTITY.md
-│       ├── TOOLS.md
-│       ├── MEMORY.md
-│       └── logs/
+├── .claude/
+│   ├── agents/
+│   │   ├── developer.md             # Developer agent (Dave) — native Claude Code format
+│   │   └── reviewer.md              # Reviewer agent (Rick) — native Claude Code format
+│   └── agent-memory/
+│       ├── developer/               # Developer's persistent memory (auto-managed)
+│       └── reviewer/                # Reviewer's persistent memory (auto-managed)
 ├── webhook-relay/                   # Cloudflare Worker (webhook relay)
 │   ├── src/index.js                 # Worker source code
 │   ├── wrangler.toml                # Cloudflare Worker config
@@ -199,18 +193,10 @@ For each repo that should use the agentic workflow:
    - `.github/workflows/agentic-developer.yml`
    - `.github/workflows/agentic-reviewer.yml`
 
-2. Create agent configuration:
+2. Create agent definitions (copy from this repo and customize the Tools & Commands section):
    ```
-   .claude/agents/developer/SYSTEM.md     # Bootstrap + instructions (system prompt)
-   .claude/agents/developer/IDENTITY.md   # Agent personality and principles
-   .claude/agents/developer/TOOLS.md      # Customize with repo-specific commands!
-   .claude/agents/developer/MEMORY.md     # Persistent learnings
-   .claude/agents/developer/logs/.gitkeep
-   .claude/agents/reviewer/SYSTEM.md
-   .claude/agents/reviewer/IDENTITY.md
-   .claude/agents/reviewer/TOOLS.md
-   .claude/agents/reviewer/MEMORY.md
-   .claude/agents/reviewer/logs/.gitkeep
+   .claude/agents/developer.md    # Developer agent — customize tools for your repo!
+   .claude/agents/reviewer.md     # Reviewer agent — customize tools for your repo!
    ```
 
 3. Connect the repo to your GitHub Projects V2 board
@@ -240,19 +226,19 @@ The system uses these labels automatically:
 
 ## Local Development with Claude Code
 
-You can start a local interactive Claude session with the Developer agent context:
+Start a local interactive Claude session as the Developer agent:
 
 ```bash
-claude --append-system-prompt "$(cat .claude/agents/developer/SYSTEM.md)"
+claude --agent developer
 ```
 
-Or with the Reviewer agent:
+Or as the Reviewer agent:
 
 ```bash
-claude --append-system-prompt "$(cat .claude/agents/reviewer/SYSTEM.md)"
+claude --agent reviewer
 ```
 
-This loads the agent's bootstrap instructions (identity, tools, memory) into the system prompt so Claude knows who it is from the start.
+This uses Claude Code's native agent system — the agent's identity, tools, and persistent memory are loaded automatically.
 
 ## Architecture Decisions
 
@@ -260,7 +246,7 @@ This loads the agent's bootstrap instructions (identity, tools, memory) into the
 - **Cloudflare Worker Relay** — Bridges the gap between GitHub webhooks and Actions triggers
 - **No auto-merge by default** — Users review and merge the final PR (unless `yolo_mode: true`)
 - **Agent config per repo** — Each repo defines its own agent identity, tools, and memory
-- **SYSTEM.md as system prompt** — Agent bootstrap loaded via `--append-system-prompt-file`, keeping task prompts clean
+- **Native Claude Code agents** — Agents defined as `.md` files with YAML frontmatter, invoked via `--agent`
 - **Session persistence** — Deterministic UUIDs allow agents to resume context across review cycles
-- **Self-improving agents** — Agents read/write their own MEMORY.md and logs for cross-session learning
+- **Self-improving agents** — Agents use Claude Code's native persistent memory (`agent-memory/`)
 - **Cloud + self-hosted runners** — Prerequisites step auto-installs missing tools for portability
